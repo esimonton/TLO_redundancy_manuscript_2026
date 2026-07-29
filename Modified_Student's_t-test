@@ -1,5 +1,8 @@
 # The following stats test was modified based on discussions with a statistician in the Genetics Department at UW-Madison, Dr. Nathaniel Sharp
 # The goal of this test is to loosen the stringency imposed by an ANOVA, but to increase that of the typical Student's t-test. Given the number of strains used in each assay, the number of assays, and the fact that we only compare each mutant to one control (WT background), we utilize the degrees of freedom (df) and the mean square (Mean sq) of the residuals from an ANOVA to calculate the standard error of the mean (SEM) for use in the Student's t-test
+
+# NOTE: this test is appropriate for datasets in which the data is mostly normally distributed (i.e. the mean values accurately represent the spread of each genotype)
+
 # The following script uses a growth assay example:
 ```{r load library dependencies}
 library(openxlsx)
