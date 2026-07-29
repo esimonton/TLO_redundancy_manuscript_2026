@@ -1,0 +1,23 @@
+# The following scripts are broken into sections based on figure panels made in the manuscript, namely Fig1C, Fig2B, Fig7A, and Fig7D, respectively.
+
+#Fig1C, single tlo mutant nutrient growth data 
+
+#Fig2B, single tlo mutant stress condition growth data
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Fig7A and D, tlo double mutant nutrient and stress condition combined growth data
+
+#NOTE this figure includes representation of gene epistasis analysis, which requires calculation of predicted growth changes from WT using the single mutant values, and comparing those to the actual double mutant (dKO) values for each condition
+#predicted values assume additive gene-gene interaction values (not significant), while actual values can follow additive or epistatic/synergistic (statistically different than predicted) rules
+
