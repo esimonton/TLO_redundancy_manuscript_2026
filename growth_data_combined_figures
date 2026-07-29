@@ -2,17 +2,357 @@
 
 #Fig1C, single tlo mutant nutrient growth data 
 
+```{r}
+#Assign colors to TLOs for figure
+
+tlo_colors <- c(
+  "tlo1∆/∆" = "cyan",
+  "tlo3∆/∆" = "cyan2",
+  "tlo34∆/∆" = "cyan3",
+  "tlo9∆" = "cyan4",
+  "tlo10∆" = "deepskyblue",
+  "tlo12∆/∆" = "dodgerblue",
+  "tlo2∆/∆" = "yellow",
+  "tlo4∆/∆" = "magenta",
+  "tlo5∆/∆" = "magenta1",
+  "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3",
+  "tlo11∆/∆" = "magenta4",
+  "tlo13∆/∆" = "darkorchid",
+  "tlo16∆/∆" = "orchid",
+  "tlo34∆/∆ tlo2∆/∆" = "green3",
+  "tlo9/tlo10∆/∆" = "darkblue",
+  "tlo∆/∆" = "gray",
+  "WT" = "gray1"
+)
+
+genotype_order <- c(
+  "wt", "tlo1∆/∆", "tlo3∆/∆", "tlo34∆/∆", "tlo9∆", "tlo10∆", "tlo12∆/∆", "tlo2∆/∆", "tlo4∆/∆", "tlo5∆/∆",
+  "tlo7∆/∆", "tlo8∆/∆", "tlo11∆/∆", "tlo13∆/∆", "tlo16∆/∆", "tlo34∆/∆ tlo2∆/∆", "tlo9∆/tlo10∆", "tlo∆/∆"
+)
+
+```
+
+```{r}
+# Load data
+library(readr)
+
+# Define the path with file.path() (recommended for cross-platform use)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "tlo_growth_df.csv")
+
+# Read the CSV
+df <- read_csv(filepath)
+
+
+library(tidyverse)
+
+# Read the file and force all growth columns to be numeric (suppress text like "No growth")
+df_raw <- read_csv(filepath, col_types = cols(
+  Genotype = col_character(),
+  YPD30 = col_double(),
+  YPD37 = col_double(),
+  SCD30 = col_double(),
+  YPM30 = col_double(),
+  Lactate37 = col_double(),
+  Acetate37 = col_double()
+))
+
+```
+
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+#install.packages("ggbeeswarm")  # if not already installed
+library(ggbeeswarm)
+
+# STEP 1: Read in your data (preserve "No growth" and text)
+df <- read_csv(filepath, col_types = cols(.default = col_character()))
+
+# STEP 2: Convert to long format
+df_long <- df %>%
+  pivot_longer(cols = -Genotype, names_to = "Condition", values_to = "DT_raw") %>%
+  mutate(
+    DT = as.numeric(DT_raw),                         # Converts numbers, keeps NA for "No growth"
+    label = ifelse(DT_raw == "No growth", "No growth", NA),
+    Genotype = str_to_lower(Genotype),                # Ensure lowercase for coloring
+    Condition = factor(Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C"))  # Specify order of conditions
+  )
+
+# STEP 3: Calculate WT means per condition
+wt_means <- df_long %>%
+  filter(Genotype == "wt", !is.na(DT)) %>%
+  group_by(Condition) %>%
+  summarise(wt_mean = mean(DT), .groups = "drop")
+
+# STEP 4: Normalize DT values to WT
+df_norm <- df_long %>%
+  left_join(wt_means, by = "Condition") %>%
+  mutate(norm_dt = DT / wt_mean)
+
+# STEP 5: Calculate the mean normalized DT per Genotype and Condition
+df_norm_mean <- df_norm %>%
+  group_by(Genotype, Condition) %>%
+  summarise(
+    mean_norm_dt = mean(norm_dt, na.rm = TRUE),   # Calculate the mean normalized doubling time
+    .groups = "drop"
+  )
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 6: Add custom genotype colors
+tlo_colors <- c(
+  "tlo34∆/∆" = "cyan3", "tlo2∆/∆" = "yellow", "tlo34∆/∆/tlo2∆/∆" = "green3", "tlo9∆/tlo10∆" = "darkblue",
+  "tlo3∆/∆" = "cyan2", "tlo9∆" = "cyan4", "tlo10∆" = "deepskyblue", "tlo12∆/∆" = "dodgerblue",
+  "tlo1∆/∆" = "cyan", "tlo4∆/∆" = "magenta", "tlo5∆/∆" = "magenta1", "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3", "tlo11∆/∆" = "magenta4", "tlo13∆/∆" = "darkorchid", "tlo16∆/∆" = "orchid",
+  "tlo∆/∆" = "gray", "WT" = "transparent"
+)
+
+# STEP 5.5: Mark significant points by joining with sig_list
+sig_list <- tribble(
+  ~Genotype,       ~Condition,
+  "tlo∆/∆",      "YPD30°C",
+  "tlo∆/∆",      "SCD30°C",
+  "tlo∆/∆",      "YPD37°C",
+  "tlo∆/∆",      "YPM30°C",
+  "tlo10∆",         "YPD37°C",
+  "tlo2∆/∆",          "YPD37°C",
+  "tlo5∆/∆",          "YPD37°C",
+  "tlo7∆/∆",          "YPD37°C",
+  "tlo8∆/∆",          "YPD37°C",
+  "tlo11∆/∆",         "YPD37°C",
+  "tlo12∆/∆",         "YPM30°C",
+  "tlo9∆",          "Lactate37°C",
+  "tlo10∆/∆",         "Lactate37°C",
+  "tlo12∆/∆",         "Lactate37°C",
+  "tlo8∆/∆",          "Lactate37°C",
+  "tlo13∆/∆",         "Lactate37°C",
+  "tlo16∆/∆",         "Lactate37°C",
+  "tlo9∆",          "Acetate37°C",
+  "tlo16∆/∆",         "Acetate37°C"
+)
+
+# Add the significance flag to the data
+df_norm_mean <- df_norm_mean %>%
+  left_join(sig_list %>% mutate(significant = TRUE), by = c("Genotype", "Condition")) %>%
+  mutate(
+    significant = ifelse(is.na(significant), FALSE, significant),  # Default to FALSE for non-significant
+    outline_color = ifelse(significant, "black", NA),              # Only outline for significant points
+    stroke_val = ifelse(significant, 1.2, 0)                       # Stroke size for significant points
+  )
+
+# Ensure that Condition is a factor and properly ordered
+df_norm_mean$Condition <- factor(df_norm_mean$Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C"))
+
+
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 7: Plot!
+# Ensure all data points are included and only significant points have an outline and color change
+ggplot(df_norm_mean, aes(x = Condition, y = mean_norm_dt)) +
+  geom_quasirandom(
+    aes(
+      fill = Genotype,
+      width = 0.1,
+      color = ifelse(significant, "black", "transparent"),  # Non-significant points will have a white outline
+      stroke = ifelse(significant, 1.2, 1.2)           # Stroke size 1.2 for non-significant points
+    ),
+    shape = 21,
+    size = 2.8,
+    groupOnX = TRUE
+  ) +
+  geom_hline(yintercept = 1, linetype = "solid", color = "black", size = 0.8) +
+  scale_fill_manual(values = tlo_colors) +
+  scale_color_identity() +  # Use color set above
+  labs(
+    title = "Mutant growth across various carbon sources",
+    x = "Condition",
+    y = "Doubling Time (relative to WT)",
+    fill = "Genotype"
+  ) +
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")
+  ) +
+  expand_limits(y = c(0, max(df_norm_mean$mean_norm_dt, na.rm = TRUE) * 1.1))  # Adjust y-axis
+
+
+```
+```{r}
+ggsave("normalized_dt_plot_no_dKOs_delta.png", width = 8, height = 6, dpi = 300)
+```
+
+
 #Fig2B, single tlo mutant stress condition growth data
 
+```{r}
+# Load data
+library(readr)
+
+# Define the path with file.path() (recommended for cross-platform use)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "tlo_stress_df.csv")
+
+# Read the CSV
+df <- read_csv(filepath)
 
 
+library(tidyverse)
+
+# Read the file and force all growth columns to be numeric (suppress text like "No growth")
+df_raw <- read_csv(filepath, col_types = cols(
+  Genotype = col_character(),
+  LowPO4 = col_double(),
+  tBOOH = col_double(),
+  YPD42 = col_double(),
+  CFW = col_double()
+))
+
+```
+```{r}
+# Load necessary libraries
+library(tidyverse)
+#install.packages("ggbeeswarm")  # if not already installed
+library(ggbeeswarm)
+
+# STEP 1: Read in your data (preserve "No growth" and text)
+df <- read_csv(filepath, col_types = cols(.default = col_character()))
+
+# STEP 2: Convert to long format
+df_long <- df %>%
+  pivot_longer(cols = -Genotype, names_to = "Condition", values_to = "DT_raw") %>%
+  mutate(
+    DT = as.numeric(DT_raw),                         # Converts numbers, keeps NA for "No growth"
+    label = ifelse(DT_raw == "No growth", "No growth", NA),
+    Genotype = str_to_lower(Genotype),                # Ensure lowercase for coloring
+    Condition = factor(Condition, levels = c("YPD42°C", "tBOOH", "LowPO4", "CFW"))  # Specify order of conditions
+  )
+
+# STEP 3: Calculate WT means per condition
+wt_means <- df_long %>%
+  filter(Genotype == "wt", !is.na(DT)) %>%
+  group_by(Condition) %>%
+  summarise(wt_mean = mean(DT), .groups = "drop")
+
+# STEP 4: Normalize DT values to WT
+df_norm <- df_long %>%
+  left_join(wt_means, by = "Condition") %>%
+  mutate(norm_dt = DT / wt_mean)
+
+# STEP 5: Calculate the mean normalized DT per Genotype and Condition
+df_norm_mean <- df_norm %>%
+  group_by(Genotype, Condition) %>%
+  summarise(
+    mean_norm_dt = mean(norm_dt, na.rm = TRUE),   # Calculate the mean normalized doubling time
+    .groups = "drop"
+  )
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 6: Add custom TLO genotype colors
+tlo_colors <- c(
+  "tlo1∆/∆" = "cyan",
+  "tlo3∆/∆" = "cyan2",
+  "tlo34∆/∆" = "cyan3",
+  "tlo9∆" = "cyan4",
+  "tlo10∆" = "deepskyblue",
+  "tlo12∆/∆" = "dodgerblue",
+  "tlo2∆/∆" = "yellow",
+  "tlo4∆/∆" = "magenta",
+  "tlo5∆/∆" = "magenta1",
+  "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3",
+  "tlo11∆/∆" = "magenta4",
+  "tlo13∆/∆" = "darkorchid",
+  "tlo16∆/∆" = "orchid",
+  "tlo34∆/∆/tlo2∆/∆" = "green3",
+  "tlo9/tlo10∆/∆" = "darkblue",
+  "tlo∆/∆" = "gray",
+  "WT" = "gray1"
+)
+
+# STEP 5.5: Mark significant points by joining with sig_list
+sig_list <- tribble(
+  ~Genotype,       ~Condition,
+  "tlo∆/∆",           "YPD42°C",
+  "tlo8∆/∆",          "YPD42°C",
+  "tlo11∆/∆",         "YPD42°C",
+  "tlo2∆/∆",          "YPD42°C",
+  "tlo4∆/∆",          "YPD42°C",
+  "tlo3∆/∆",          "YPD42°C",
+  "tlo∆/∆",           "tBOOH",
+  "tlo4∆/∆",          "tBOOH",
+  "tlo1∆/∆",          "LowPO4",
+  "tlo3∆/∆",          "LowPO4",
+  "tlo10∆",           "LowPO4",
+  "tlo9∆",            "LowPO4",
+  "tlo4∆/∆",          "LowPO4",
+  "tlo7∆/∆",          "LowPO4",
+  "tlo8∆/∆",          "LowPO4",
+  "tlo11∆/∆",         "LowPO4",
+  "tlo13∆/∆",         "LowPO4",
+  "tlo9∆",            "CFW",
+  "tlo10∆",           "CFW",
+  "tlo12∆/∆",         "CFW",
+  "tlo7∆/∆",          "CFW",
+  "tlo8∆/∆",          "CFW"
+)
+
+# Add the significance flag to the data
+df_norm_mean <- df_norm_mean %>%
+  left_join(sig_list %>% mutate(significant = TRUE), by = c("Genotype", "Condition")) %>%
+  mutate(
+    significant = ifelse(is.na(significant), FALSE, significant),  # Default to FALSE for non-significant
+    outline_color = ifelse(significant, "black", NA),              # Only outline for significant points
+    stroke_val = ifelse(significant, 1.2, 0)                       # Stroke size for significant points
+  )
+
+# Ensure that Condition is a factor and properly ordered
+df_norm_mean$Condition <- factor(df_norm_mean$Condition, levels = c("YPD42°C", "tBOOH", "LowPO4", "CFW"))
 
 
-
-
-
-
-
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+# STEP 7: Plot!
+ggplot(df_norm_mean, aes(x = Condition, y = mean_norm_dt)) +
+  geom_quasirandom(
+    aes(
+      fill = Genotype,
+      width = 0.1,
+      color = ifelse(significant, "black", "transparent"),  # Non-significant points will have a white outline
+      stroke = ifelse(significant, 1.2, 1.2)           # Stroke size 1.2 for non-significant points
+    ),
+    shape = 21,
+    size = 2.8,
+    groupOnX = TRUE
+  ) +
+  geom_hline(yintercept = 1, linetype = "solid", color = "black", size = 0.8) +
+  scale_fill_manual(values = tlo_colors) +
+  scale_color_identity() +  # Use color set above
+  labs(
+    title = "Mutant stress tolerance across conditions",
+    x = "Condition",
+    y = "Doubling Time (relative to WT)",
+    color = "Genotype"
+  ) +
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")  # 
+  ) +
+  # Adjust y-axis range to encompass all data points
+  expand_limits(y = c(0, max(df_norm_mean$mean_norm_dt, na.rm = TRUE) * 1.1))  # Extend the y-axis range
+```
+```{r}
+#Save stress growth plot
+ggsave("normalized_dt_stress_no_dKOs.png", width = 8, height = 6, dpi = 300)
+```
 
 
 
@@ -21,3 +361,350 @@
 #NOTE this figure includes representation of gene epistasis analysis, which requires calculation of predicted growth changes from WT using the single mutant values, and comparing those to the actual double mutant (dKO) values for each condition
 #predicted values assume additive gene-gene interaction values (not significant), while actual values can follow additive or epistatic/synergistic (statistically different than predicted) rules
 
+#Please refer to the epistasis_calculation repo to get these significance results 
+
+```{r}
+#combine tables for each dKO
+
+#Start with 34/2
+
+# Load data
+library(readr)
+
+# Define the path with file.path() (recommended for cross-platform use)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "dKO1_tlo_comb_df.csv")
+
+# Read the CSV
+df <- read_csv(filepath)
+
+
+library(tidyverse)
+
+# Read the file and force all growth columns to be numeric (suppress text like "No growth")
+df_raw <- read_csv(filepath, col_types = cols(
+  Genotype = col_character(),
+  YPD30 = col_double(),
+  YPD37 = col_double(),
+  SCD30 = col_double(),
+  YPM30 = col_double(),
+  Lactate37 = col_double(),
+  Acetate37 = col_double(),
+  LowPO4 = col_double(),
+  tBOOH = col_double(),
+  YPD42 = col_double(),
+  CFW = col_double()
+))
+
+#Assign colors to TLOs for figure
+
+tlo_colors <- c(
+  "tlo1∆/∆" = "cyan",
+  "tlo3∆/∆" = "cyan2",
+  "tlo34∆/∆" = "cyan3",
+  "tlo9∆" = "cyan4",
+  "tlo10∆" = "deepskyblue",
+  "tlo12∆/∆" = "dodgerblue",
+  "tlo2∆/∆" = "yellow",
+  "tlo4∆/∆" = "magenta",
+  "tlo5∆/∆" = "magenta1",
+  "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3",
+  "tlo11∆/∆" = "magenta4",
+  "tlo13∆/∆" = "darkorchid",
+  "tlo16∆/∆" = "orchid",
+  "tlo34∆/∆ tlo2∆/∆" = "green3",
+  "tlo9∆/tlo10∆" = "darkblue",
+  "tlo∆/∆" = "gray",
+  "WT" = "transparent"
+)
+
+genotype_order <- c(
+  "wt", "tlo34∆/∆", "tlo2∆/∆", "tlo34∆/∆ tlo2∆/∆")
+
+# Load necessary libraries
+library(tidyverse)
+#install.packages("ggbeeswarm")  # if not already installed
+library(ggbeeswarm)
+
+# STEP 1: Read in your data (preserve "No growth" and text)
+df <- read_csv(filepath, col_types = cols(.default = col_character()))
+
+# STEP 2: Convert to long format
+df_long <- df %>%
+  pivot_longer(cols = -Genotype, names_to = "Condition", values_to = "DT_raw") %>%
+  mutate(
+    DT = as.numeric(DT_raw),                         # Converts numbers, keeps NA for "No growth"
+    label = ifelse(DT_raw == "No growth", "No growth", NA),
+    Genotype = str_to_lower(Genotype),                # Ensure lowercase for coloring
+    Condition = factor(Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C", "YPD42°C", "tBOOH", "LowPO4", "CFW"))  # Specify order of conditions
+  )
+
+# STEP 3: Calculate WT means per condition
+wt_means <- df_long %>%
+  filter(Genotype == "wt", !is.na(DT)) %>%
+  group_by(Condition) %>%
+  summarise(wt_mean = mean(DT), .groups = "drop")
+
+# STEP 4: Normalize DT values to WT
+df_norm <- df_long %>%
+  left_join(wt_means, by = "Condition") %>%
+  mutate(norm_dt = DT / wt_mean)
+
+# STEP 5: Calculate the mean normalized DT per Genotype and Condition
+df_norm_mean <- df_norm %>%
+  group_by(Genotype, Condition) %>%
+  summarise(
+    mean_norm_dt = mean(norm_dt, na.rm = TRUE),   # Calculate the mean normalized doubling time
+    .groups = "drop"
+  )
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 6: Add custom TLO genotype colors
+tlo_colors <- c(
+  "tlo34∆/∆" = "cyan3", "tlo2∆/∆" = "yellow", "tlo34∆/∆-tlo2∆/∆" = "green3",
+  "wt" = "transparent"
+)
+
+# STEP 5.5: Mark significant points by joining with sig_list (based on dKOs vs singles if diff than additive)
+sig_list <- tribble(
+  ~Genotype,       ~Condition,
+  
+  "tlo34∆/∆-tlo2∆/∆", "YPD42°C"
+  
+)
+
+# Add the significance flag to the data
+df_norm_mean <- df_norm_mean %>%
+  left_join(sig_list %>% mutate(significant = TRUE), by = c("Genotype", "Condition")) %>%
+  mutate(
+    significant = ifelse(is.na(significant), FALSE, significant),  # Default to FALSE for non-significant
+    outline_color = ifelse(significant, "black", NA),              # Only outline for significant points
+    stroke_val = ifelse(significant, 1.2, 0)                       # Stroke size for significant points
+  )
+
+# Ensure that Condition is a factor and properly ordered
+df_norm_mean$Condition <- factor(df_norm_mean$Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C", "YPD42°C", "tBOOH", "LowPO4", "CFW"))
+
+
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 7: Plot!
+# Ensure all data points are included and only significant points have an outline and color change
+ggplot(df_norm_mean, aes(x = Condition, y = mean_norm_dt)) +
+  geom_quasirandom(
+    aes(
+      fill = Genotype,
+      color = ifelse(significant, "black", "transparent"),  # Non-significant points will have a white outline
+      stroke = ifelse(significant, 1.2, 1.2)           # Stroke size 1.2 for non-significant points
+    ),
+    shape = 21,
+    size = 2.8,
+    groupOnX = TRUE,
+    width = 0,  # tighter horizontal spread, keeping points near center
+  ) +
+  geom_hline(yintercept = 1, linetype = "solid", color = "black", size = 0.8) +
+  scale_fill_manual(values = tlo_colors) +
+  scale_color_identity() +  # Use color set above
+  labs(
+    title = "Mutant growth across various conditions",
+    x = "Condition",
+    y = "Doubling Time (relative to WT)",
+    fill = "Genotype"
+  ) +
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")
+  ) +
+  expand_limits(y = c(0, max(df_norm_mean$mean_norm_dt, na.rm = TRUE) * 1.1))  # Adjust y-axis
+
+ggsave("dKO1_normalized_comb_plot_delta.png", width = 8, height = 6, dpi = 300)
+```
+```{r}
+#Determine the significant difference between the dKOs and their single KO counterparts to estimate genetic interaction (additive vs non-additive interaction)
+#Assuming you have a df with the conditions, predicted deviation from WT normalization based on single KOs, and actual deviation from the dKOs
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+
+dKO1 <- in_df$dKO1
+dKO2 <- in_df$dKO2
+```
+
+
+```{r}
+#combine tables for each dKO
+
+#now 9/10
+
+# Load data
+library(readr)
+
+# Define the path with file.path() (recommended for cross-platform use)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "dKO2_tlo_comb_df.csv")
+
+# Read the CSV
+df <- read_csv(filepath)
+
+
+library(tidyverse)
+
+# Read the file and force all growth columns to be numeric (suppress text like "No growth")
+df_raw <- read_csv(filepath, col_types = cols(
+  Genotype = col_character(),
+  YPD30 = col_double(),
+  YPD37 = col_double(),
+  SCD30 = col_double(),
+  YPM30 = col_double(),
+  Lactate37 = col_double(),
+  Acetate37 = col_double(),
+  LowPO4 = col_double(),
+  tBOOH = col_double(),
+  YPD42 = col_double(),
+  CFW = col_double()
+))
+
+#Assign colors to TLOs for figure
+
+tlo_colors <- c(
+  "tlo1∆/∆" = "cyan",
+  "tlo3∆/∆" = "cyan2",
+  "tlo34∆/∆" = "cyan3",
+  "tlo9∆" = "cyan4",
+  "tlo10∆" = "deepskyblue",
+  "tlo12∆/∆" = "dodgerblue",
+  "tlo2∆/∆" = "yellow",
+  "tlo4∆/∆" = "magenta",
+  "tlo5∆/∆" = "magenta1",
+  "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3",
+  "tlo11∆/∆" = "magenta4",
+  "tlo13∆/∆" = "darkorchid",
+  "tlo16∆/∆" = "orchid",
+  "tlo34∆/∆-tlo2∆/∆" = "green3",
+  "tlo9∆/tlo10∆" = "darkblue",
+  "tlo∆/∆" = "gray",
+  "WT" = "transparent"
+)
+
+genotype_order <- c(
+  "wt", "tlo9∆", "tlo10∆", "tlo9∆/tlo10∆")
+
+# Load necessary libraries
+library(tidyverse)
+#install.packages("ggbeeswarm")  # if not already installed
+library(ggbeeswarm)
+
+# STEP 1: Read in your data (preserve "No growth" and text)
+df <- read_csv(filepath, col_types = cols(.default = col_character()))
+
+# STEP 2: Convert to long format
+df_long <- df %>%
+  pivot_longer(cols = -Genotype, names_to = "Condition", values_to = "DT_raw") %>%
+  mutate(
+    DT = as.numeric(DT_raw),                         # Converts numbers, keeps NA for "No growth"
+    label = ifelse(DT_raw == "No growth", "No growth", NA),
+    Genotype = str_to_lower(Genotype),                # Ensure lowercase for coloring
+    Condition = factor(Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C", "YPD42°C", "tBOOH", "LowPO4", "CFW"))  # Specify order of conditions
+  )
+
+# STEP 3: Calculate WT means per condition
+wt_means <- df_long %>%
+  filter(Genotype == "wt", !is.na(DT)) %>%
+  group_by(Condition) %>%
+  summarise(wt_mean = mean(DT), .groups = "drop")
+
+# STEP 4: Normalize DT values to WT
+df_norm <- df_long %>%
+  left_join(wt_means, by = "Condition") %>%
+  mutate(norm_dt = DT / wt_mean)
+
+# STEP 5: Calculate the mean normalized DT per Genotype and Condition
+df_norm_mean <- df_norm %>%
+  group_by(Genotype, Condition) %>%
+  summarise(
+    mean_norm_dt = mean(norm_dt, na.rm = TRUE),   # Calculate the mean normalized doubling time
+    .groups = "drop"
+  )
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 6: Add custom TLO genotype colors
+tlo_colors <- c(
+  "tlo9∆" = "cyan4", "tlo10∆" = "deepskyblue","tlo9∆/tlo10∆" = "darkblue",
+  "wt" = "transparent"
+)
+
+# STEP 5.5: Mark significant points by joining with sig_list
+sig_list <- tribble(
+  ~Genotype,       ~Condition,
+
+  "tlo9∆/tlo10∆",      "tBOOH",
+  "tlo9∆/tlo10∆",     "YPD42°C",
+  "tlo9∆/tlo10∆",   "LowPO4",
+  "tlo9∆/tlo10∆",   "Lactate37°C"
+)
+
+# Add the significance flag to the data
+df_norm_mean <- df_norm_mean %>%
+  left_join(sig_list %>% mutate(significant = TRUE), by = c("Genotype", "Condition")) %>%
+  mutate(
+    significant = ifelse(is.na(significant), FALSE, significant),  # Default to FALSE for non-significant
+    outline_color = ifelse(significant, "black", NA),              # Only outline for significant points
+    stroke_val = ifelse(significant, 1.2, 0)                       # Stroke size for significant points
+  )
+
+# Ensure that Condition is a factor and properly ordered
+df_norm_mean$Condition <- factor(df_norm_mean$Condition, levels = c("YPD30°C", "SCD30°C", "YPM30°C", "YPD37°C", "Lactate37°C", "Acetate37°C", "YPD42°C", "tBOOH", "LowPO4", "CFW"))
+
+
+# Make Genotype a factor with your custom order
+df_norm_mean$Genotype <- factor(df_norm_mean$Genotype, levels = genotype_order)
+
+# STEP 7: Plot!
+# Ensure all data points are included and only significant points have an outline and color change
+ggplot(df_norm_mean, aes(x = Condition, y = mean_norm_dt)) +
+  geom_quasirandom(
+    aes(
+      fill = Genotype,
+      color = ifelse(significant, "black", "transparent"),  # Non-significant points will have a white outline
+      stroke = ifelse(significant, 1.5, 1.5)           # Stroke size 1.2 for non-significant points
+    ),
+    shape = 21,
+    size = 2.8,
+    groupOnX = TRUE,
+    width = 0,  # tighter horizontal spread, keeping points near center
+  ) +
+  geom_hline(yintercept = 1, linetype = "solid", color = "black", size = 0.8) +
+  scale_fill_manual(values = tlo_colors) +
+  scale_color_identity() +  # Use color set above
+  labs(
+    title = "Mutant growth across various conditions",
+    x = "Condition",
+    y = "Doubling Time (relative to WT)",
+    fill = "Genotype"
+  ) +
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")
+  ) +
+  expand_limits(y = c(0, max(df_norm_mean$mean_norm_dt, na.rm = TRUE) * 1.1))  # Adjust y-axis
+
+ggsave("dKO2_normalized_comb_plot_delta.png", width = 8, height = 6, dpi = 300)
+```
