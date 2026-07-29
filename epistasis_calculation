@@ -1,0 +1,119 @@
+# Use the following scripts to calculate whether double knockout mutants demonstrate gene-gene interactions in given conditions
+
+```{r load the .csv with your predicted and actual phenotype values}
+# Load data
+library(readr)
+
+# Define the path with file.path() (recommended for cross-platform use)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "epistasis_analysis.csv")
+
+# Read the CSV
+df <- read_csv(filepath)
+
+```
+
+
+```{r}
+#Run simple paired t-test for all conditions for each dKO group, since each condition has a paired predicted and actual phenotype value
+library(dplyr)
+
+# Make sure everything is numeric
+dko1_df <- dKO1 %>%
+  mutate(
+    predicted_dKO = as.numeric(predicted_dKO),
+    actual_dKO = as.numeric(actual_dKO)
+  )
+
+# Function to run t-test and handle missing values
+run_ttest_correct <- function(sub_df) {
+  # Only use rows where both values are present
+  clean_df <- sub_df %>%
+    filter(!is.na(predicted_dKO) & !is.na(actual_dKO))
+  
+  # Pull vectors
+  pred <- clean_df$predicted_dKO
+  actual <- clean_df$actual_dKO
+  
+  # Decide test type
+  test <- if (length(pred) == length(actual)) {
+    t.test(pred, actual, paired = TRUE)
+  } else {
+    t.test(pred, actual, paired = FALSE)
+  }
+
+  return(list(
+    test = test,
+    n_pred = sum(!is.na(sub_df$predicted_dKO)),
+    n_actual = sum(!is.na(sub_df$actual_dKO)),
+    n_used = nrow(clean_df),
+    paired = length(pred) == length(actual),
+    p_value = test$p.value,
+    t_stat = test$statistic,
+    conf_low = test$conf.int[1],
+    conf_high = test$conf.int[2],
+    mean_pred = mean(pred),
+    mean_actual = mean(actual)
+  ))
+}
+
+# Apply per condition
+t_test_results <- dko1_df %>%
+  group_by(Condition) %>%
+  group_map(~{
+    result <- run_ttest_correct(.x)
+    tibble(
+      Condition = .y$Condition,  # FIX: get Condition from grouping variable
+      n_pred = result$n_pred,
+      n_actual = result$n_actual,
+      n_used = result$n_used,
+      paired = result$paired,
+      p_value = result$p_value,
+      t_stat = result$t_stat,
+      conf_low = result$conf_low,
+      conf_high = result$conf_high,
+      mean_pred = result$mean_pred,
+      mean_actual = result$mean_actual
+    )
+  }) %>%
+  bind_rows()
+
+
+# Export to CSV
+write.csv(t_test_results, "t_test_results_dKO1.csv", row.names = FALSE)
+
+
+```
+
+```{r}
+#Now for dKO2
+
+library(dplyr)
+library(readr)
+
+# Assuming your existing dataframe is called `dko_df`
+# Step 1: Remove rows where actual_dKO is missing
+dko2_df_clean <- dKO2 %>%
+  filter(!is.na(actual_dKO))
+
+# Step 2: Run paired t-test for each Condition
+t_test_results_dKO2 <- dko2_df_clean %>%
+  group_by(Condition) %>%
+  summarise(
+    t_test = list(t.test(predicted_dKO, actual_dKO, paired = TRUE)),
+    p_value = t_test[[1]]$p.value,
+    t_stat = t_test[[1]]$statistic,
+    mean_pred = mean(predicted_dKO),
+    mean_actual = mean(actual_dKO),
+    n = n()
+  )
+
+# View the results
+print(t_test_results_dKO2)
+
+# Drop the 't_test' list-column before writing
+t_test_export2 <- t_test_results_dKO2 %>% select(-t_test)
+
+# Write to CSV
+write.csv(t_test_export2, file = "t_test_results_dKO2.csv", row.names = FALSE)
+```
+
