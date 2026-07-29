@@ -1,0 +1,183 @@
+# First you will have converted all the cell type counts to proportions for each genotype to graph as a stacked barchart
+# Ensure you have calculated the standard deviation for each genotype for your error bars
+
+```{r}
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Sample data (replace with your actual data)
+mutant_data <- data.frame(
+  Genotype = c('genotype1', 'genotype2', 'genotype3'),
+  YP_avg = c(0.05, 0.30, 0.10),
+  H_Avg = c(0.95, 0.70, 0.90),
+  SD = c(0.062838, 0.052448, 0.080592)
+)
+
+# Your preferred order of TLO mutants
+mutant_order <- c('genotype1', 'genotype2', 'genotype3')
+
+# Convert 'Genotype' to a factor with the specified order
+mutant_data$Genotype <- factor(mutant_data$Genotype, levels = mutant_order)
+
+# Reshape data for plotting
+mutant_data <- mutant_data %>%
+  pivot_longer(cols = c("YP_avg", "H_Avg"), names_to = "CellType", values_to = "Proportion")
+
+# Define colors for each Genotype
+genotype_colors <-  c("genotype1"="gray1", "genotype2"="cyan", "genotype3"="cyan2")
+
+# Correct Cumulative column
+mutant_data <- mutant_data %>%
+  group_by(Genotype) %>%
+  mutate(Cumulative = ifelse(CellType == "YP_avg", Proportion, NA)) %>%
+  fill(Cumulative, .direction = "downup")
+
+# Add colors as a column to the data
+mutant_data <- mutant_data %>%
+  mutate(Color = genotype_colors[Genotype])
+
+# Plot
+stacked_barplot <- ggplot(mutant_data, aes(x = Genotype, y = Proportion, fill = CellType)) +
+  # Stacked bar chart
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
+  
+  # Add colored tiles below each x-axis label
+geom_tile(aes(x = Genotype, y = -0.05), 
+          height = 0.05, width = 0.9, 
+          fill = mutant_data$Color,  # Directly use the color column
+          show.legend = FALSE) +
+  
+  # Error bars at the intersection
+  geom_errorbar(
+    data = mutant_data %>% filter(CellType == "YP_avg"),
+    aes(x = Genotype, ymin = Cumulative - SD, ymax = Cumulative + SD), 
+    width = 0.2, inherit.aes = FALSE, color = "black"
+  ) +
+  
+  # Titles and themes
+  labs(
+    title = "Liquid Filamentation in RPMI+10% FBS (37°C for 4hrs)",
+    #x = "Genotype", #optional label for x-axis
+    y = "Proportion",
+    fill = "Cell Type"
+  ) +
+  
+  # Custom fill colors and legend labels for stacked bars
+  scale_fill_manual(
+    values = c("YP_avg" = "gold", "H_Avg" = "red"),
+    labels = c("YP_avg" = "Yeast+Pseudohyphae", "H_Avg" = "Hyphae")
+  ) +
+  
+  # Adjust y-axis to show colored tiles
+  scale_y_continuous(limits = c(-0.1, 1.0), expand = c(0, 0)) +
+  
+  # Customize theme
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1, vjust = 1.15, size = 20, face = "italic"  # Italicize x-axis labels
+    ),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(
+      size = 20,         # Adjust the title size if needed
+      hjust = 0.5,       # Center the title
+      margin = margin(b = 20)),  # Add margin below the title (b = bottom margin),
+    legend.text = element_text(size = 20),
+    legend.title = element_text(size = 20, face = "bold")
+  )
+
+# Print the plot
+print(stacked_barplot)
+
+# Save the plot with ggsave
+ggsave("stacked_barplot_liq_fila.png", plot = stacked_barplot, width = 12, height = 8, units = "in", dpi = 600)
+```
+
+# You will need to annotate your statistically significant samples on the barchart manually with either powerpoint or Adobe Illustrator 
+
+# NOTE: cell counts are inherently non-normally distributed and thus require a non-parametric statistical test. With this dataset, we opted to use the most powerful option: linear generalized model (GLM). See the following for explanation: https://doi.org/10.1093/oso/9780198798170.003.0017
+
+# If your data is overdispersed (common in biological experiements), using a quasibinomial GLM corrects for that
+
+#We used our original raw cell type count data to have the most statistical power in the analysis
+
+```{r}
+# Run linear generalized model (GLM) instead of ANOVA/t-test since cell type counts are non-parametric and we have raw cell type counts
+
+# This test is the most powerful option because it accounts for number of cells, replicate differences, and doesn't pool counts together. 
+
+# Load the necessary library
+library(ggplot2)
+library(openxlsx)
+library(readxl)
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+# Determine whether genotype has any significant impact of dictating cell type first:
+
+
+model <- glm(cbind(H, nH) ~ Genotype,
+             family = binomial,
+             data = in_df$raw_counts)
+
+summary(model)
+
+anova(model, test = "Chisq")
+```
+
+```{r}
+#Check for overdispersion of data
+dispersion <- sum(residuals(model, type = "pearson")^2) /
+              df.residual(model)
+
+dispersion
+
+# If greater than 2, use family = quasibinomial instead of binomial
+```
+
+```{r}
+# Compare each genotype to WT control iteratively
+
+
+# Make the WT the "treatment" control
+in_df$raw_counts$Genotype <- relevel(
+    factor(in_df$raw_counts$Genotype),
+    ref = "WT"
+)
+
+library(emmeans)
+
+model <- glm(cbind(H, nH) ~ Genotype,
+             family = quasibinomial,
+             data = in_df$raw_counts)
+
+
+emm <- emmeans(model, ~ Genotype)
+
+results <- contrast(
+    emm,
+    method = "trt.vs.ctrl",
+    ref = "WT",
+    adjust = "BH"
+)
+
+summary(results)
+```
+
+
