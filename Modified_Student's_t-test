@@ -1,0 +1,93 @@
+# The following stats test was modified based on discussions with a statistician in the Genetics Department at UW-Madison, Dr. Nathaniel Sharp
+# The goal of this test is to loosen the stringency imposed by an ANOVA, but to increase that of the typical Student's t-test. Given the number of strains used in each assay, the number of assays, and the fact that we only compare each mutant to one control (WT background), we utilize the degrees of freedom (df) and the mean square (Mean sq) of the residuals from an ANOVA to calculate the standard error of the mean (SEM) for use in the Student's t-test
+# The following script uses a growth assay example:
+```{r load library dependencies}
+library(openxlsx)
+library(emmeans)
+library(dplyr)
+```
+```{r open data file from excel}
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+```{r run ANOVA on }
+#Doubling time analyses
+
+d_time_anova <- aov(t_gen ~ Genotype, data = in_df$Sheet1)
+summary(d_time_anova)
+
+# Use the Mean Sq in the Residuals row to calculate the SEM for the t-test
+```
+```{r generate means from each sample's biological replicates}
+#Run student's t-test with the standard error of the mean (SEM) which is calculated by taking the square root of the Mean Sq from the Anova
+#Use this value in place of the standard deviation
+
+
+data <- in_df$Sheet1
+
+
+# Calculate the mean for each genotype across biological replicates
+mean_t_gen_data <- data %>%
+  group_by(Genotype) %>%
+  summarise(Mean_t_gen = mean(Rate, na.rm = TRUE)) %>%
+  ungroup()
+
+# View the averaged data
+print(mean_t_gen_data)
+```
+
+```{r input the number of biological replicates used for each sample}
+data <- data.frame(
+  Genotype = mean_t_gen_data$Genotype,
+  Mean_t_gen = mean_t_gen_data$Mean_t_gen,
+  Sample_Size = c(4, 4, 4, 4, 4, 4, 4, 4) # Adjusted sample sizes  # be aware that the numbers listed here must be in the exact same order of the output from the previous mean generation chunk, which is usually alphanumerical and capitalization of letters matters
+)
+```
+
+
+```{r use ANOVA values, mean values, and sample numbers in t-test}
+# Define ANOVA parameters
+mean_sq_residuals <-   6.367   # Mean Sq (Residuals)
+residuals_df <- 27          # Residuals Df
+
+
+# Calculate SEM
+sem <- sqrt(mean_sq_residuals)
+
+
+# Extract WT mean
+wt_mean <- data %>% filter(Genotype == "WT") %>% pull(Mean_t_gen)
+wt_n <- data %>% filter(Genotype == "WT") %>% pull(Sample_Size)
+
+# Perform t-tests accounting for sample sizes
+t_test_results <- data %>%
+  filter(Genotype != "WT") %>%
+  rowwise() %>%
+  mutate(
+    t_value = (Mean_t_gen - wt_mean) / (sem * sqrt(1 / wt_n + 1 / Sample_Size)),
+    p_value = 2 * pt(-abs(t_value), df = residuals_df),  # Two-tailed p-value
+    significance = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01  ~ "**",
+      p_value < 0.05  ~ "*",
+      TRUE            ~ "ns"
+    )
+  ) %>%
+   dplyr::select(Genotype, Mean_t_gen, Sample_Size, t_value, p_value, significance)
+
+# View results
+print(t_test_results)
+
+write.csv(t_test_results, file = "t_test_results.csv")
+```
+
+# You can now use this output to annotate significance values in figures such as boxplots, barplots, etc.
