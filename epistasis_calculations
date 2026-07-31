@@ -1,0 +1,107 @@
+# The following scripts are meant to calculate significant gene-gene interactions (epistasis) using single and double mutant groups
+# Replicate information is needed to appropriately use these calculations
+
+# First, we start by using LDH release data to assess double mutant impacts on virulence 
+# NOTE: the data used are already normalized to positive and negative lysis controls from the experiment and have been converted to percent LDH release as a proxy for macrophage death
+# IN ADDITION: you will need to assign binary IDs for each mutant, with 1 meaning that gene is deleted and 0 meaning it is present 
+
+# Used in Fig7B, E
+
+```{r load required library dependencies, upload ldh data into R}
+library(openxlsx)
+library(ggplot2)
+library(emmeans)
+library(dplyr)
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+
+
+```{r convert double mutant data sheet into an independent dataframe}
+# We have assigned binary indetifiers for single and double mutants based on which TLOs are deleted (eg 1 = deleted, 0 = present). This allows R to parse through the data and understand what events are most impactful on the phenotype
+epi_df1 <- in_df$dKO1 %>%
+  mutate(
+    gene1 = ifelse(Genotype %in%
+                     c("gene1∆/∆",
+                       "gene1∆/∆ gene2∆/∆"), 1, 0),
+
+    gene2 = ifelse(Genotype %in%
+                    c("gene2∆/∆",
+                      "gene1∆/∆ gene2∆/∆"), 1, 0)
+  )
+```
+
+```{r run a factorial linear regression model; ANOVA outputs easier to interpret}
+epi_df1$gene1 <- factor(epi_df1$gene1)
+epi_df1$gene2  <- factor(epi_df1$gene2)
+
+epi_model <- lm(norm_LDH ~ gene1 * gene2, data = epi_df1)
+
+anova(epi_model)
+summary(epi_model)
+emmeans::emmeans(epi_model, pairwise ~ gene1 * gene2)
+```
+
+
+```{r plot the linear model data to visualize the impact of each gene}
+library(ggplot2)
+
+ggplot(epi_df1,
+       aes(x = factor(gene1),
+           y = norm_LDH,
+           color = factor(gene2),
+           group = factor(gene2))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.1) +
+  labs(x = "gene1 deletion",
+       color = "gene2 deletion",
+       y = "% LDH release")
+```
+
+
+# Determine epistasis between mutants in Galleria survival
+# Used in Fig7C, F
+
+```{r load required library dependencies, upload survival data into R}
+library(openxlsx)
+library(ggplot2)
+library(emmeans)
+library(dplyr)
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r run cox interaction model}
+galleria_data <- in_df$dKO1
+
+library(survival)
+
+cox_model <- coxph(
+  Surv(Days, Status) ~ gene1 * gene2,
+  data = galleria_data
+)
+
+summary(cox_model)
+```
