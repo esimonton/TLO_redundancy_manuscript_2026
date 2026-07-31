@@ -1,4 +1,5 @@
 # Use the following scripts to calculate whether double knockout mutants demonstrate gene-gene interactions in given conditions
+# USed for Fig7A, D
 
 ```{r load the .csv with your predicted and actual phenotype values}
 # Load data
@@ -80,40 +81,4 @@ t_test_results <- dko1_df %>%
 
 # Export to CSV
 write.csv(t_test_results, "t_test_results_dKO1.csv", row.names = FALSE)
-
-
 ```
-
-```{r}
-#Now for dKO2
-
-library(dplyr)
-library(readr)
-
-# Assuming your existing dataframe is called `dko_df`
-# Step 1: Remove rows where actual_dKO is missing
-dko2_df_clean <- dKO2 %>%
-  filter(!is.na(actual_dKO))
-
-# Step 2: Run paired t-test for each Condition
-t_test_results_dKO2 <- dko2_df_clean %>%
-  group_by(Condition) %>%
-  summarise(
-    t_test = list(t.test(predicted_dKO, actual_dKO, paired = TRUE)),
-    p_value = t_test[[1]]$p.value,
-    t_stat = t_test[[1]]$statistic,
-    mean_pred = mean(predicted_dKO),
-    mean_actual = mean(actual_dKO),
-    n = n()
-  )
-
-# View the results
-print(t_test_results_dKO2)
-
-# Drop the 't_test' list-column before writing
-t_test_export2 <- t_test_results_dKO2 %>% select(-t_test)
-
-# Write to CSV
-write.csv(t_test_export2, file = "t_test_results_dKO2.csv", row.names = FALSE)
-```
-
