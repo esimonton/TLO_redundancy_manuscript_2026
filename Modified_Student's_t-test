@@ -77,15 +77,19 @@ t_test_results <- data %>%
   rowwise() %>%
   mutate(
     t_value = (Mean_t_gen - wt_mean) / (sem * sqrt(1 / wt_n + 1 / Sample_Size)),
-    p_value = 2 * pt(-abs(t_value), df = residuals_df),  # Two-tailed p-value
+     p_value = 2 * pt(-abs(t_value), df = residuals_df)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),  #Multiple testing correction with Benjamini-Hochberg
     significance = case_when(
-      p_value < 0.001 ~ "***",
-      p_value < 0.01  ~ "**",
-      p_value < 0.05  ~ "*",
-      TRUE            ~ "ns"
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE          ~ "ns"
     )
   ) %>%
-   dplyr::select(Genotype, Mean_t_gen, Sample_Size, t_value, p_value, significance)
+   dplyr::select(Genotype, Mean_t_gen, Sample_Size, t_value, p_value, p_adj, significance)
 
 # View results
 print(t_test_results)
