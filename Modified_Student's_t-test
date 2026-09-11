@@ -3,7 +3,7 @@
 
 # NOTE: this test is appropriate for datasets in which the data is mostly normally distributed (i.e. the mean values accurately represent the spread of each genotype)
 
-# The following script uses a growth assay example:
+# Sample data used in this script example is from a growth assay in 25ug/mL calcofluor white (CFW) at 30°C for ~30hrs:
 ```{r load library dependencies}
 library(openxlsx)
 library(emmeans)
@@ -52,15 +52,15 @@ print(mean_t_gen_data)
 data <- data.frame(
   Genotype = mean_t_gen_data$Genotype,
   Mean_t_gen = mean_t_gen_data$Mean_t_gen,
-  Sample_Size = c(4, 4, 4, 4, 4, 4, 4, 4) # Adjusted sample sizes  # be aware that the numbers listed here must be in the exact same order of the output from the previous mean generation chunk, which is usually alphanumerical and capitalization of letters matters
+  Sample_Size = c(4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4) # Adjusted sample sizes  # be aware that the numbers listed here must be in the exact same order of the output from the previous mean generation chunk, which is usually alphanumerical and capitalization of letters matters
 )
 ```
 
 
 ```{r use ANOVA values, mean values, and sample numbers in t-test}
 # Define ANOVA parameters
-mean_sq_residuals <-   6.367   # Mean Sq (Residuals)
-residuals_df <- 27          # Residuals Df
+mean_sq_residuals <-   44.75   # Mean Sq (Residuals)
+residuals_df <- 55          # Residuals Df
 
 
 # Calculate SEM
