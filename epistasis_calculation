@@ -57,4 +57,14 @@ results_1_2 <- dko_1_2 %>%
   }) %>%
   ungroup()
 
+#Multiple testing corrections
 
+results_1_2 <- results_1_2 %>%
+  mutate(
+    p_adj = p.adjust(p_interaction, method = "BH")
+  )
+#View results
+results1_2
+
+#Save results as a .csv
+write.csv(results_1_2, file = "epistasis_growth_Gene1Gene2.csv")
