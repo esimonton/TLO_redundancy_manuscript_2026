@@ -1,0 +1,38 @@
+
+```{r}
+#choosing input file
+# This will be the file with your data to be analyzed
+
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+# rename data frame 
+data_for_TDtest <- in_df$Sheet1
+# ensure Genotype is treated as a factor
+data_for_TDtest$Genotype <- as.factor(data_for_TDtest$Genotype)
+# ensure WT is treated as the first factor so the other levels are compared with this
+data_for_TDtest$Genotype <- relevel(data_for_TDtest$Genotype, ref="WT")
+# determine P values using Tamhane Dunnett tests; *NOTE*, these P values are already adjusted for multiple comparisons, and no further adjustment is necessary
+p_values <- tamhaneDunnettTest(t_gen~Genotype, data_for_TDtest)
+
+p_vals <- print(p_values)
+```
+
+```{r}
+#Save p-vals for manuscript
+capture.output(
+  p_values,
+  file = "Results_TamhaneDunnett.txt"
+)
+```
+
