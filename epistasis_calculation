@@ -1,5 +1,6 @@
 ```{r}
 #Epistasis data predictions 
+# This script is designed for continuous data, such as doubling time values, mass, etc.
 
 
 library(openxlsx)
