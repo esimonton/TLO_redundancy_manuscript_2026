@@ -1,6 +1,6 @@
 ```{r}
-#Epistasis data predictions 
-# This script is designed for continuous data, such as doubling time values, mass, etc.
+#Epistasis data predictions for double mutants to see if the genes have a significant genetic interaction under given conditions
+# This script is designed for data with continuous values, such as doubling time, mass, LDH release, etc.
 
 
 library(openxlsx)
@@ -15,14 +15,14 @@ in_file <- file.choose()
 
 # getting data from sheets
 in_sheets <- openxlsx::getSheetNames(in_file)
-df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
   
 # assigning names to data frame
-names(df) <- in_sheets
+names(in_df) <- in_sheets
 
 print(names(df))
 
-in_df <- df # ADDED
+
 
 library(dplyr)
 
@@ -68,3 +68,40 @@ results1_2
 
 #Save results as a .csv
 write.csv(results_1_2, file = "epistasis_growth_Gene1Gene2.csv")
+
+________________________________________
+
+# Determine epistasis between mutants in Galleria survival
+# Survival data requires a Cox proportional hazards model (interaction model) to accurately assess genetic interactions
+# See Cox DR. 1972. Regression Models and Life-Tables. Journal of the Royal Statistical Society. Series B (Methodological) 34:187-220.
+
+
+```{r}
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+library(survival)
+
+data_34_2 <- subset(
+  in_df$Sheet1,
+  Genotype %in% c("WT", "Gene1∆/∆", "Gene2∆/∆", "Gene1∆/∆ Gene2∆/∆")
+)
+
+model_34_2 <- coxph(
+  Surv(Days, Status) ~ GENE1 * GENE2 + strata(Replicate),
+  data = data_1_2
+)
+
+summary(model_1_2)
+```
