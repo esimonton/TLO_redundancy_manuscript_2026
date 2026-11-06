@@ -1,0 +1,2696 @@
+# Ued to construct Fig S6!
+# I iteratively went through every genotype to save myself time for re-running things down the road, so it can get tedious to go through the script. Feel free to simply use the fist plot as a reference and skip down to the end to see how I used the magick package to combine all the plots into one image
+#Magick package scripts to combine plots = lines 2632-2695
+
+```{r}
+# TLO1 volcano plot
+# Load required libraries
+library(ggplot2)
+library(ggrepel)
+library(readxl)
+library(dplyr)
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo1_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
+tlo1_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo1_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo1_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+
+
+# Load the files (update file paths if needed)
+tlo1_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
+tlo1_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo1_shrink_filtered$diff_expression <- with(tlo1_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo1_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo1_DEGs)
+head(tlo1_shrink_filtered)
+
+# Merge the two datasets
+tlo1_merged_data <- tlo1_shrink_filtered %>%
+  left_join(tlo1_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo1_merged_data$log2FoldChange <- ifelse(!is.na(tlo1_merged_data$log2FoldChange_DEG), 
+                                     tlo1_merged_data$log2FoldChange_DEG, 
+                                     tlo1_merged_data$log2FoldChange_shrink)
+
+tlo1_merged_data$padj <- ifelse(!is.na(tlo1_merged_data$padj_DEG), 
+                           tlo1_merged_data$padj_DEG, 
+                           tlo1_merged_data$padj_shrink)
+
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo1_merged_data$log2FoldChange[tlo1_merged_data$diff_expression == "Upregulated"]), 0.85, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo1_merged_data$log2FoldChange[tlo1_merged_data$diff_expression == "Downregulated"]), 0.85, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo1_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo1_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo1_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=38", "Non-significant", "Upregulated N=28")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo1∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 20) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.3,
+    nudge_x = 1,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.5,
+    segment.color = "gray50",
+   segment.curvature = -0.2, # Add slight curvature to segments
+  segment.ncp = 3,        # Number of control points on the curve
+  segment.angle = 20,     # Angle for segment curvature
+  force = 10,             # Increase force to repel labels more strongly
+  force_pull = 5          # Pull labels further from points to force lines
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo1_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+
+
+```
+
+```{r}
+# TLO3 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo3_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
+tlo3_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo3_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo3_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo3_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
+tlo3_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo3_shrink_filtered$diff_expression <- with(tlo3_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo3_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo3_DEGs)
+head(tlo3_shrink_filtered)
+
+# Merge the two datasets
+tlo3_merged_data <- tlo3_shrink_filtered %>%
+  left_join(tlo3_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo3_merged_data$log2FoldChange <- ifelse(!is.na(tlo3_merged_data$log2FoldChange_DEG), 
+                                     tlo3_merged_data$log2FoldChange_DEG, 
+                                     tlo3_merged_data$log2FoldChange_shrink)
+
+tlo3_merged_data$padj <- ifelse(!is.na(tlo3_merged_data$padj_DEG), 
+                           tlo3_merged_data$padj_DEG, 
+                           tlo3_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo3_merged_data$log2FoldChange[tlo3_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo3_merged_data$log2FoldChange[tlo3_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo3_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo3_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo3_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=40", "Non-significant", "Upregulated N=23")
+  ) +
+  theme_minimal(base_size = 18) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo3∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-8, 8) +
+  ylim(-1, 40) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, font = "italic",
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo3_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+```{r}
+# TLO34 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo34_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
+tlo34_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo34_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo34_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo34_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
+tlo34_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo34_shrink_filtered$diff_expression <- with(tlo34_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo34_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo34_DEGs)
+head(tlo34_shrink_filtered)
+
+# Merge the two datasets
+tlo34_merged_data <- tlo34_shrink_filtered %>%
+  left_join(tlo34_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo34_merged_data$log2FoldChange <- ifelse(!is.na(tlo34_merged_data$log2FoldChange_DEG), 
+                                     tlo34_merged_data$log2FoldChange_DEG, 
+                                     tlo34_merged_data$log2FoldChange_shrink)
+
+tlo34_merged_data$padj <- ifelse(!is.na(tlo34_merged_data$padj_DEG), 
+                           tlo34_merged_data$padj_DEG, 
+                           tlo34_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo34_merged_data$log2FoldChange[tlo34_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo34_merged_data$log2FoldChange[tlo34_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo34_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo34_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo34_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=24", "Non-significant", "Upregulated N=2")
+  ) +
+  theme_minimal(base_size = 18) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo34∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 7.5) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo34_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+```{r}
+# TLO9 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo9_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
+tlo9_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo9_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo9_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+```{r}
+# Load the files (update file paths if needed)
+tlo9_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
+tlo9_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo9_shrink_filtered$diff_expression <- with(tlo9_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo9_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo9_DEGs)
+head(tlo9_shrink_filtered)
+
+# Merge the two datasets
+tlo9_merged_data <- tlo9_shrink_filtered %>%
+  left_join(tlo9_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo9_merged_data$log2FoldChange <- ifelse(!is.na(tlo9_merged_data$log2FoldChange_DEG), 
+                                     tlo9_merged_data$log2FoldChange_DEG, 
+                                     tlo9_merged_data$log2FoldChange_shrink)
+
+tlo9_merged_data$padj <- ifelse(!is.na(tlo9_merged_data$padj_DEG), 
+                           tlo9_merged_data$padj_DEG, 
+                           tlo9_merged_data$padj_shrink)
+```
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo9_merged_data$log2FoldChange[tlo9_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo9_merged_data$log2FoldChange[tlo9_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo9_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo9_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo9_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=74", "Non-significant", "Upregulated N=104")
+  ) +
+  theme_minimal(base_size = 18) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo9∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 40) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo9_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+
+```{r}
+# TLO10 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
+tlo10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo10_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo10_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
+tlo10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo10_shrink_filtered$diff_expression <- with(tlo10_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo10_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo10_DEGs)
+head(tlo10_shrink_filtered)
+
+# Merge the two datasets
+tlo10_merged_data <- tlo10_shrink_filtered %>%
+  left_join(tlo10_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo10_merged_data$log2FoldChange <- ifelse(!is.na(tlo10_merged_data$log2FoldChange_DEG), 
+                                     tlo10_merged_data$log2FoldChange_DEG, 
+                                     tlo10_merged_data$log2FoldChange_shrink)
+
+tlo10_merged_data$padj <- ifelse(!is.na(tlo10_merged_data$padj_DEG), 
+                           tlo10_merged_data$padj_DEG, 
+                           tlo10_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo10_merged_data$log2FoldChange[tlo10_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo10_merged_data$log2FoldChange[tlo10_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo10_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo10_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo10_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=54", "Non-significant", "Upregulated N=13")
+  ) +
+  theme_minimal(base_size = 18) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo10∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 25) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo10_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+```{r}
+#TLO12 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo12_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
+tlo12_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo12_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo12_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo12_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
+tlo12_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo12_shrink_filtered$diff_expression <- with(tlo12_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo12_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo12_DEGs)
+head(tlo12_shrink_filtered)
+
+# Merge the two datasets
+tlo12_merged_data <- tlo12_shrink_filtered %>%
+  left_join(tlo12_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo12_merged_data$log2FoldChange <- ifelse(!is.na(tlo12_merged_data$log2FoldChange_DEG), 
+                                     tlo12_merged_data$log2FoldChange_DEG, 
+                                     tlo12_merged_data$log2FoldChange_shrink)
+
+tlo12_merged_data$padj <- ifelse(!is.na(tlo12_merged_data$padj_DEG), 
+                           tlo12_merged_data$padj_DEG, 
+                           tlo12_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo12_merged_data$log2FoldChange[tlo12_merged_data$diff_expression == "Upregulated"]), 0.98, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo12_merged_data$log2FoldChange[tlo12_merged_data$diff_expression == "Downregulated"]), 0.98, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo12_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo12_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo12_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=115", "Non-significant", "Upregulated N=210")
+  ) +
+  theme_minimal(base_size = 18) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo12∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 40) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo12_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+```{r}
+#TLO2 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
+tlo2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo2_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo2_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
+tlo2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo2_shrink_filtered$diff_expression <- with(tlo2_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo2_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo2_DEGs)
+head(tlo2_shrink_filtered)
+
+# Merge the two datasets
+tlo2_merged_data <- tlo2_shrink_filtered %>%
+  left_join(tlo2_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo2_merged_data$log2FoldChange <- ifelse(!is.na(tlo2_merged_data$log2FoldChange_DEG), 
+                                     tlo2_merged_data$log2FoldChange_DEG, 
+                                     tlo2_merged_data$log2FoldChange_shrink)
+
+tlo2_merged_data$padj <- ifelse(!is.na(tlo2_merged_data$padj_DEG), 
+                           tlo2_merged_data$padj_DEG, 
+                           tlo2_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo2_merged_data$log2FoldChange[tlo2_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo2_merged_data$log2FoldChange[tlo2_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo2_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo2_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo2_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=20", "Non-significant", "Upregulated N=11")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo2∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 60) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo2_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+```{r}
+#TLO4 volcano plot
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo4_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
+tlo4_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo4_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo4_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo4_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
+tlo4_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo4_shrink_filtered$diff_expression <- with(tlo4_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo4_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo4_DEGs)
+head(tlo4_shrink_filtered)
+
+# Merge the two datasets
+tlo4_merged_data <- tlo4_shrink_filtered %>%
+  left_join(tlo4_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo4_merged_data$log2FoldChange <- ifelse(!is.na(tlo4_merged_data$log2FoldChange_DEG), 
+                                     tlo4_merged_data$log2FoldChange_DEG, 
+                                     tlo4_merged_data$log2FoldChange_shrink)
+
+tlo4_merged_data$padj <- ifelse(!is.na(tlo4_merged_data$padj_DEG), 
+                           tlo4_merged_data$padj_DEG, 
+                           tlo4_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo4_merged_data$log2FoldChange[tlo4_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo4_merged_data$log2FoldChange[tlo4_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo4_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo4_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo4_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=26", "Non-significant", "Upregulated N=12")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo4∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 10) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo4_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+
+
+```{r}
+#TLO5 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo5_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
+tlo5_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo5_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo5_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo5_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
+tlo5_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo5_shrink_filtered$diff_expression <- with(tlo5_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo5_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo5_DEGs)
+head(tlo5_shrink_filtered)
+
+# Merge the two datasets
+tlo5_merged_data <- tlo5_shrink_filtered %>%
+  left_join(tlo5_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo5_merged_data$log2FoldChange <- ifelse(!is.na(tlo5_merged_data$log2FoldChange_DEG), 
+                                     tlo5_merged_data$log2FoldChange_DEG, 
+                                     tlo5_merged_data$log2FoldChange_shrink)
+
+tlo5_merged_data$padj <- ifelse(!is.na(tlo5_merged_data$padj_DEG), 
+                           tlo5_merged_data$padj_DEG, 
+                           tlo5_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo5_merged_data$log2FoldChange[tlo5_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo5_merged_data$log2FoldChange[tlo5_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo5_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo5_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo5_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=15", "Non-significant", "Upregulated N=0")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo5∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 35) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo5_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+```{r}
+#TLO7 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo7_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
+tlo7_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo7_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo7_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo7_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
+tlo7_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo7_shrink_filtered$diff_expression <- with(tlo7_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo7_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo7_DEGs)
+head(tlo7_shrink_filtered)
+
+# Merge the two datasets
+tlo7_merged_data <- tlo7_shrink_filtered %>%
+  left_join(tlo7_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo7_merged_data$log2FoldChange <- ifelse(!is.na(tlo7_merged_data$log2FoldChange_DEG), 
+                                     tlo7_merged_data$log2FoldChange_DEG, 
+                                     tlo7_merged_data$log2FoldChange_shrink)
+
+tlo7_merged_data$padj <- ifelse(!is.na(tlo7_merged_data$padj_DEG), 
+                           tlo7_merged_data$padj_DEG, 
+                           tlo7_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo7_merged_data$log2FoldChange[tlo7_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo7_merged_data$log2FoldChange[tlo7_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo7_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo7_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo7_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=25", "Non-significant", "Upregulated N=1")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo7∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 10) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo7_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+```{r}
+#TLO8 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo8_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
+tlo8_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo8_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo8_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo8_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
+tlo8_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo8_shrink_filtered$diff_expression <- with(tlo8_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo8_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo8_DEGs)
+head(tlo8_shrink_filtered)
+
+# Merge the two datasets
+tlo8_merged_data <- tlo8_shrink_filtered %>%
+  left_join(tlo8_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo8_merged_data$log2FoldChange <- ifelse(!is.na(tlo8_merged_data$log2FoldChange_DEG), 
+                                     tlo8_merged_data$log2FoldChange_DEG, 
+                                     tlo8_merged_data$log2FoldChange_shrink)
+
+tlo8_merged_data$padj <- ifelse(!is.na(tlo8_merged_data$padj_DEG), 
+                           tlo8_merged_data$padj_DEG, 
+                           tlo8_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo8_merged_data$log2FoldChange[tlo8_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo8_merged_data$log2FoldChange[tlo8_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo8_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo8_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo8_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=30", "Non-significant", "Upregulated N=14")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo8∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 30) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo8_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+```{r}
+#TLO11 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo11_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
+tlo11_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo11_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo11_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo11_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
+tlo11_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo11_shrink_filtered$diff_expression <- with(tlo11_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo11_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo11_DEGs)
+head(tlo11_shrink_filtered)
+
+# Merge the two datasets
+tlo11_merged_data <- tlo11_shrink_filtered %>%
+  left_join(tlo11_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo11_merged_data$log2FoldChange <- ifelse(!is.na(tlo11_merged_data$log2FoldChange_DEG), 
+                                     tlo11_merged_data$log2FoldChange_DEG, 
+                                     tlo11_merged_data$log2FoldChange_shrink)
+
+tlo11_merged_data$padj <- ifelse(!is.na(tlo11_merged_data$padj_DEG), 
+                           tlo11_merged_data$padj_DEG, 
+                           tlo11_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo11_merged_data$log2FoldChange[tlo11_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo11_merged_data$log2FoldChange[tlo11_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo11_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo11_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo11_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=18", "Non-significant", "Upregulated N=11")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo11∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 10) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo11_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+
+```{r}
+#TLO13 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo13_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
+tlo13_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo13_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo13_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo13_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
+tlo13_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo13_shrink_filtered$diff_expression <- with(tlo13_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo13_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo13_DEGs)
+head(tlo13_shrink_filtered)
+
+# Merge the two datasets
+tlo13_merged_data <- tlo13_shrink_filtered %>%
+  left_join(tlo13_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo13_merged_data$log2FoldChange <- ifelse(!is.na(tlo13_merged_data$log2FoldChange_DEG), 
+                                     tlo13_merged_data$log2FoldChange_DEG, 
+                                     tlo13_merged_data$log2FoldChange_shrink)
+
+tlo13_merged_data$padj <- ifelse(!is.na(tlo13_merged_data$padj_DEG), 
+                           tlo13_merged_data$padj_DEG, 
+                           tlo13_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo13_merged_data$log2FoldChange[tlo13_merged_data$diff_expression == "Upregulated"]), 0.95, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo13_merged_data$log2FoldChange[tlo13_merged_data$diff_expression == "Downregulated"]), 0.95, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo13_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo13_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo13_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=78", "Non-significant", "Upregulated N=104")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo13∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 40) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo13_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+```{r}
+#TLO16 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo16_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
+tlo16_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo16_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo16_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo16_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
+tlo16_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo16_shrink_filtered$diff_expression <- with(tlo16_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo16_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo16_DEGs)
+head(tlo16_shrink_filtered)
+
+# Merge the two datasets
+tlo16_merged_data <- tlo16_shrink_filtered %>%
+  left_join(tlo16_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo16_merged_data$log2FoldChange <- ifelse(!is.na(tlo16_merged_data$log2FoldChange_DEG), 
+                                     tlo16_merged_data$log2FoldChange_DEG, 
+                                     tlo16_merged_data$log2FoldChange_shrink)
+
+tlo16_merged_data$padj <- ifelse(!is.na(tlo16_merged_data$padj_DEG), 
+                           tlo16_merged_data$padj_DEG, 
+                           tlo16_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo16_merged_data$log2FoldChange[tlo16_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo16_merged_data$log2FoldChange[tlo16_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo16_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo16_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo16_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=13", "Non-significant", "Upregulated N=1")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo16∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-5, 5) +
+  ylim(-1, 10) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo16_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+
+```{r}
+#TLO34/TLO2 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo34.2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
+tlo34.2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo34.2_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo34.tlo2_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo34.2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
+tlo34.2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo34.2_shrink_filtered$diff_expression <- with(tlo34.2_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo34.2_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo34.2_DEGs)
+head(tlo34.2_shrink_filtered)
+
+# Merge the two datasets
+tlo34.2_merged_data <- tlo34.2_shrink_filtered %>%
+  left_join(tlo34.2_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo34.2_merged_data$log2FoldChange <- ifelse(!is.na(tlo34.2_merged_data$log2FoldChange_DEG), 
+                                     tlo34.2_merged_data$log2FoldChange_DEG, 
+                                     tlo34.2_merged_data$log2FoldChange_shrink)
+
+tlo34.2_merged_data$padj <- ifelse(!is.na(tlo34.2_merged_data$padj_DEG), 
+                           tlo34.2_merged_data$padj_DEG, 
+                           tlo34.2_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo34.2_merged_data$log2FoldChange[tlo34.2_merged_data$diff_expression == "Upregulated"]), 0.90, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo34.2_merged_data$log2FoldChange[tlo34.2_merged_data$diff_expression == "Downregulated"]), 0.90, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo34.2_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo34.2_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo34.2_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=14", "Non-significant", "Upregulated N=0")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo34∆/∆-tlo2∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 60) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo34.tlo2_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+```
+
+
+
+```{r}
+#TLO9/TLO10 volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+tlo9.10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
+tlo9.10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- tlo9.10_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo9.tlo10_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+tlo9.10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
+tlo9.10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+tlo9.10_shrink_filtered$diff_expression <- with(tlo9.10_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(tlo9.10_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(tlo9.10_DEGs)
+head(tlo9.10_shrink_filtered)
+
+# Merge the two datasets
+tlo9.10_merged_data <- tlo9.10_shrink_filtered %>%
+  left_join(tlo9.10_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+tlo9.10_merged_data$log2FoldChange <- ifelse(!is.na(tlo9.10_merged_data$log2FoldChange_DEG), 
+                                     tlo9.10_merged_data$log2FoldChange_DEG, 
+                                     tlo9.10_merged_data$log2FoldChange_shrink)
+
+tlo9.10_merged_data$padj <- ifelse(!is.na(tlo9.10_merged_data$padj_DEG), 
+                           tlo9.10_merged_data$padj_DEG, 
+                           tlo9.10_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(tlo9.10_merged_data$log2FoldChange[tlo9.10_merged_data$diff_expression == "Upregulated"]), 0.98, na.rm = TRUE)
+down_cutoff <- quantile(abs(tlo9.10_merged_data$log2FoldChange[tlo9.10_merged_data$diff_expression == "Downregulated"]), 0.98, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- tlo9.10_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- tlo9.10_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(tlo9.10_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=147", "Non-significant", "Upregulated N=213")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo9∆/tlo10∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-10, 10) +
+  ylim(-1, 40) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("tlo9.tlo10_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+
+```
+
+
+```{r}
+# tlo-null volcano plot
+
+# Load necessary libraries
+library(ggplot2)
+library(ggpmisc)
+library(EnhancedVolcano)
+library(readxl)
+library(ggrepel)
+library(dplyr)
+
+
+#Ensure that your shrink_filtered file has the ORF column named as such
+
+# Load your data (update the file path as needed)
+null_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
+null_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
+
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- null_shrink_filtered$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "null_shrink_filtered_geneIDs.csv")
+
+#Edit shrink_filtered file to include Gene column
+```
+
+
+```{r}
+# Load the files (update file paths if needed)
+null_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
+null_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
+
+# Create a new column to classify genes based on significance and fold change
+null_shrink_filtered$diff_expression <- with(null_shrink_filtered, 
+  ifelse(padj < 0.05 & log2FoldChange > 1, "Upregulated",
+    ifelse(padj < 0.05 & log2FoldChange < -1, "Downregulated", "Non-significant"))
+)
+
+# Check if the new column was created correctly
+table(null_shrink_filtered$diff_expression)
+
+
+
+# Inspect the data to ensure it's loaded correctly
+head(null_DEGs)
+head(null_shrink_filtered)
+
+# Merge the two datasets
+null_merged_data <- null_shrink_filtered %>%
+  left_join(null_DEGs, by = "ORF", suffix = c("_shrink", "_DEG"))
+
+# If there are any overlapping columns (like padj or log2FoldChange), prioritize the DEG values
+null_merged_data$log2FoldChange <- ifelse(!is.na(null_merged_data$log2FoldChange_DEG), 
+                                     null_merged_data$log2FoldChange_DEG, 
+                                     null_merged_data$log2FoldChange_shrink)
+
+null_merged_data$padj <- ifelse(!is.na(null_merged_data$padj_DEG), 
+                           null_merged_data$padj_DEG, 
+                           null_merged_data$padj_shrink)
+```
+
+
+```{r}
+# Calculate the top 10% threshold for LFC
+up_cutoff <- quantile(abs(null_merged_data$log2FoldChange[null_merged_data$diff_expression == "Upregulated"]), 0.98, na.rm = TRUE)
+down_cutoff <- quantile(abs(null_merged_data$log2FoldChange[null_merged_data$diff_expression == "Downregulated"]), 0.98, na.rm = TRUE)
+
+# Get the most significant genes based on p-value (top 10 lowest padj) but only significant ones
+significant_genes <- null_merged_data %>%
+  filter(diff_expression != "Non-significant") %>%
+  arrange(padj) %>%
+  slice_head(n = 10)
+
+# Filter genes based on LFC and p-value criteria, excluding non-significant genes and those within LFC boundaries
+top_genes <- null_merged_data %>%
+  filter(
+    ((diff_expression == "Upregulated" & log2FoldChange >= up_cutoff) |
+     (diff_expression == "Downregulated" & log2FoldChange <= -down_cutoff)) &
+    (log2FoldChange > 1 | log2FoldChange < -1)  # Exclude genes within LFC boundaries
+  ) %>%
+  bind_rows(significant_genes) %>%
+  filter(diff_expression != "Non-significant") %>%  # Ensure no non-significant genes are included
+  distinct(Gene, .keep_all = TRUE)  # Remove duplicates
+
+
+# Combine the manually selected gene with top genes for labeling
+top_genes <- bind_rows(top_genes) %>%
+  distinct(Gene, .keep_all = TRUE)
+
+
+
+# Volcano plot with conditional label positioning (left for downregulated, right for upregulated)
+volcano_plot <- ggplot(null_merged_data, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = diff_expression), size = 2) +
+   scale_color_manual(
+    name = "Expression Status",
+    values = c("Upregulated" = "red", "Non-significant" = "lightgray", "Downregulated" = "blue"),
+    labels = c("Downregulated N=130", "Non-significant", "Upregulated N=401")
+  ) +
+  theme_minimal(base_size = 20) +
+  labs(
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted p-value", 
+    title = bquote("DE Genes in" ~ italic("tlo∆/∆") ~ "vs. WT")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24),
+    axis.title.x = element_text(size = 20, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 20, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 20),
+    axis.text.y = element_text(size = 20),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20)
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = -1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(-20, 20) +
+  ylim(-1, 125) +
+  # Add labels with lines pointing to the corresponding points and avoid overlap
+  geom_text_repel(
+    data = top_genes,
+    aes(label = Gene, 
+        hjust = ifelse(diff_expression == "Downregulated", 1, 
+                       ifelse(diff_expression == "Upregulated", 0, NA))), # Position labels left or right
+    size = 5,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    nudge_y = 0.6,  # Adjust the vertical position for labels
+    max.overlaps = Inf,
+    segment.size = 0.3,
+    segment.color = "gray50",
+    force = 3,    # Repel labels to avoid overlap with dots
+    force_pull = 1  # Pull labels slightly further from the points
+  )
+
+# Print the plot
+print(volcano_plot)
+
+# Save the plot with ggsave
+ggsave("null_DEG_volcano_logcutoff_labelled.png", plot = volcano_plot, width = 10, height = 8, units = "in", dpi = 500)
+
+```
+
+```{r}
+# Assembling all the volcano plots into a single sheet, like you would in Adobe Illustrator
+
+#install.packages("patchwork")
+#install.packages("magick")
+
+library(ggplot2)
+library(patchwork)
+library(magick)
+```
+
+
+
+
+```{r}
+library(magick)
+
+
+# List of image file paths
+image_files <- c(
+  "path_to_images/tlo1_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo3_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo34_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo9_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo10_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo12_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo2_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo4_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo5_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo7_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo8_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo11_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo13_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo16_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo34.tlo2_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/tlo9.tlo10_DEG_volcano_logcutoff_labelled.png",
+  "path_to_images/null_DEG_volcano_logcutoff_labelled.png"
+)
+
+# Read in the images
+valid_images <- lapply(image_files, image_read)
+
+# Get the dimensions of the images
+image_width <- image_info(valid_images[[1]])$width
+image_height <- image_info(valid_images[[1]])$height
+
+# Define the number of columns and rows for the grid
+n_cols <- 4
+n_rows <- ceiling(length(valid_images) / n_cols)
+
+# Create a blank canvas with transparent background large enough to hold the images
+final_width <- n_cols * image_width
+final_height <- n_rows * image_height
+blank_canvas <- image_blank(final_width, final_height, color = "transparent")  # Transparent background
+
+# Loop through each image and place it on the canvas
+for (i in seq_along(valid_images)) {
+  # Calculate the row and column position for each image
+  row <- ceiling(i / n_cols) - 1
+  col <- (i - 1) %% n_cols
+  
+  # Calculate x and y offsets for the current image
+  x_offset <- col * image_width
+  y_offset <- row * image_height
+  
+  # Composite the image onto the blank canvas at the calculated position
+  blank_canvas <- image_composite(blank_canvas, valid_images[[i]], 
+                                  offset = paste0("+", x_offset, "+", y_offset), operator = "over")
+}
+
+# Save the final combined image
+output_path <- "desired_output_path/combined_volcano_plots.png"
+image_write(blank_canvas, path = output_path, format = "png", density = "1000x1000")
+
+# Print message on success
+cat("Combined image saved at:", output_path, "with 600 DPI resolution.\n")
+
+
+```
