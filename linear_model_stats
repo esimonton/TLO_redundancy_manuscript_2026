@@ -1,0 +1,79 @@
+# This script is designed to be used for raw count data (such as cell type proportions when classifying filamentation) to calculate statistically significant changes
+
+```{r}
+# Run linear generalized model (GLM) instead of ANOVA/t-test since cell type counts are non-parametric and we have raw cell type counts
+
+# This test is the most powerful option because it accounts for number of cells, replicate differences, and doesn't pool counts together. 
+
+# Load the necessary library
+library(ggplot2)
+library(openxlsx)
+library(readxl)
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+# Determine whether genotype has any significant impact of dictating cell type first:
+
+
+model <- glm(cbind(H, nH) ~ Genotype,
+             family = binomial,
+             data = in_df$raw_counts)
+
+summary(model)
+
+anova(model, test = "Chisq")
+```
+```{r}
+# Compare each genotype to WT control iteratively
+
+
+# Make the WT the "treatment" control
+in_df$raw_counts$Genotype <- relevel(
+    factor(in_df$raw_counts$Genotype),
+    ref = "WT"
+)
+
+library(emmeans)
+
+model <- glm(cbind(H, nH) ~ Genotype,
+             family = quasibinomial, #start with binomial, but change to quasi if the data is overdispersed (greater than 2)
+             data = in_df$raw_counts)
+
+
+emm <- emmeans(model, ~ Genotype)
+
+results <- contrast(
+    emm,
+    method = "trt.vs.ctrl",
+    ref = "WT",
+    adjust = "BH"
+)
+
+summary(results)
+```
+
+```{r}
+#Check for overdispersion of data
+dispersion <- sum(residuals(model, type = "pearson")^2) /
+              df.residual(model)
+
+dispersion
+
+# If greater than 2, use family = quasibinomial instead of binomial
+```
+```{r}
+results <- summary(results, type = "response")
+
+```
