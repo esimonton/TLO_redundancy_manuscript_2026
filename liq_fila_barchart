@@ -1,0 +1,100 @@
+```{r}
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Sample data (replace with your actual data)
+mutant_data <- data.frame(
+  Genotype = c('WT', 'tlo1∆/∆', 'tlo3∆/∆', 'tlo34∆/∆', 'tlo9∆', 'tlo10∆', 'tlo12∆/∆', 'tlo2∆/∆', 'tlo4∆/∆', 'tlo5∆/∆', 'tlo7∆/∆', 'tlo8∆/∆', 'tlo11∆/∆', 'tlo13∆/∆', 'tlo16∆/∆', 'tlo∆/∆'),
+  YP_avg = c(0.107664, 0.077981, 0.15268, 0.11747, 0.076108, 0.075504, 0.154097, 0.095045, 
+             0.123039, 0.277234, 0.056841, 0.085699, 0.099733, 0.09, 0.110866, 0.465131),
+  H_Avg = c(0.892311, 0.921994, 0.847318, 0.88245, 0.923867, 0.924494, 0.845903, 0.904927, 
+            0.876961, 0.722759, 0.943159, 0.913917, 0.900241, 0.91, 0.889118, 0.534861),
+  SD = c(0.062838, 0.052448, 0.080592, 0.069651, 0.08, 0.035347, 0.107557, 0.090592, 
+         0.105291, 0.142605, 0.063671, 0.041145, 0.081547, 0.039593, 0.127227, 0.213456)
+)
+
+# Your preferred order of TLO mutants
+mutant_order <- c('WT', 'tlo1∆/∆', 'tlo3∆/∆', 'tlo34∆/∆', 'tlo9∆', 'tlo10∆', 'tlo12∆/∆', 'tlo2∆/∆', 'tlo4∆/∆', 'tlo5∆/∆', 'tlo7∆/∆', 'tlo8∆/∆', 'tlo11∆/∆', 'tlo13∆/∆', 'tlo16∆/∆', 'tlo∆/∆')
+
+# Convert 'Genotype' to a factor with the specified order
+mutant_data$Genotype <- factor(mutant_data$Genotype, levels = mutant_order)
+
+# Reshape data for plotting
+mutant_data <- mutant_data %>%
+  pivot_longer(cols = c("YP_avg", "H_Avg"), names_to = "CellType", values_to = "Proportion")
+
+# Define colors for each Genotype
+genotype_colors <-  c("WT"="gray1", "tlo1∆/∆"="cyan", "tlo3∆/∆"="cyan2", "tlo34∆/∆"="cyan3", "tlo9∆"="cyan4", "tlo10∆"= "deepskyblue", "tlo12∆/∆"= "dodgerblue", "tlo2∆/∆"="yellow", "tlo4∆/∆"="magenta","tlo5∆/∆"="magenta1","tlo7∆/∆"="magenta2", "tlo8∆/∆"="magenta3", "tlo11∆/∆"="orchid", "tlo13∆/∆"= "darkorchid", "tlo16∆/∆"="magenta4", "tlo∆/∆"="gray")
+
+# Correct Cumulative column
+mutant_data <- mutant_data %>%
+  group_by(Genotype) %>%
+  mutate(Cumulative = ifelse(CellType == "YP_avg", Proportion, NA)) %>%
+  fill(Cumulative, .direction = "downup")
+
+# Add colors as a column to the data
+mutant_data <- mutant_data %>%
+  mutate(Color = genotype_colors[Genotype])
+
+# Plot
+stacked_barplot <- ggplot(mutant_data, aes(x = Genotype, y = Proportion, fill = CellType)) +
+  # Stacked bar chart
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
+  
+  # Add colored tiles below each x-axis label
+geom_tile(aes(x = Genotype, y = -0.05), 
+          height = 0.05, width = 0.9, 
+          fill = mutant_data$Color,  # Directly use the color column
+          show.legend = FALSE) +
+  
+  # Error bars at the intersection
+  geom_errorbar(
+    data = mutant_data %>% filter(CellType == "YP_avg"),
+    aes(x = Genotype, ymin = Cumulative - SD, ymax = Cumulative + SD), 
+    width = 0.2, inherit.aes = FALSE, color = "black"
+  ) +
+  
+  # Titles and themes
+  labs(
+    title = "Liquid Filamentation in RPMI+10% FBS (37°C for 4hrs)",
+    #x = "Genotype", 
+    y = "Proportion",
+    fill = "Cell Type"
+  ) +
+  
+  # Custom fill colors and legend labels for stacked bars
+  scale_fill_manual(
+    values = c("YP_avg" = "gold", "H_Avg" = "red"),
+    labels = c("YP_avg" = "Yeast+Pseudohyphae", "H_Avg" = "Hyphae")
+  ) +
+  
+  # Adjust y-axis to show colored tiles
+  scale_y_continuous(limits = c(-0.1, 1.0), expand = c(0, 0)) +
+  
+  # Customize theme
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1, vjust = 1.15, size = 20, face = "italic"  # Italicize x-axis labels
+    ),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(
+      size = 20,         # Adjust the title size if needed
+      hjust = 0.5,       # Center the title
+      margin = margin(b = 20)),  # Add margin below the title (b = bottom margin),
+    legend.text = element_text(size = 20),
+    legend.title = element_text(size = 20, face = "bold")
+  )
+
+# Print the plot
+print(stacked_barplot)
+
+# Save the plot with ggsave
+ggsave("tlo_stacked_barplot_liq_fila_37C_colored_delta_no_dKOs.png", plot = stacked_barplot, width = 12, height = 8, units = "in", dpi = 300)
+
+
+```
