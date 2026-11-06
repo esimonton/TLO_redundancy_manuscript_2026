@@ -1,0 +1,170 @@
+```{r}
+#Start by verifying that you have two important dataframes (df) to start: 
+# 1.) MEs as columns, genotypes as row names, and association values listed out (averaged for each genotype, i.e. biological replicates)
+# 2.) traits df with genotypes as row names and columns as phenotypes with average quantified data included
+
+#Import each df separately
+library(readxl)
+filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "RNAseq", "YPD30", "RNAseq_reads_2nd_alignment2026", "stringent_ME_df.xlsx")
+filepath2 <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "RNAseq", "YPD30", "RNAseq_reads_2nd_alignment2026", "phenotypes_df.xlsx")
+# Read the CSV
+ME_df <- read_xlsx(filepath)
+trait_df <- read_xlsx(filepath2)
+
+# Inspect the data
+head(ME_df)
+head(trait_df)
+
+
+#Make sure all genotype names match between the two dfs
+all(rownames(ME_df) == rownames(trait_df))  # should be TRUE
+
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# Make sure Genotype is a column in both tibbles
+# (If it’s a rowname, convert to a column first)
+# trait_df <- tibble::rownames_to_column(trait_df, var = "Genotype")
+# ME_df <- tibble::rownames_to_column(ME_df, var = "Genotype")
+
+# Initialize results dataframe
+results_df <- tibble(
+  Trait = character(),
+  Module = character(),
+  Slope = numeric(),
+  R_squared = numeric(),
+  P_value = numeric()
+)
+
+# Loop over traits and MEs (exclude Genotype column)
+for (trait in setdiff(colnames(trait_df), "Genotype")) {
+  for (ME in setdiff(colnames(ME_df), "Genotype")) {
+    combined <- inner_join(
+      trait_df %>% select(Genotype, all_of(trait)),
+      ME_df %>% select(Genotype, all_of(ME)),
+      by = "Genotype"
+    ) %>%
+      drop_na()
+
+    if (nrow(combined) > 2) {  # need enough points to fit
+      model <- lm(reformulate(ME, response = trait), data = combined)
+      summ <- summary(model)
+      slope <- coef(model)[2]
+      r2 <- summ$r.squared
+      pval <- coef(summ)[2, 4]
+
+      results_df <- results_df %>%
+        add_row(
+          Trait = trait,
+          Module = ME,
+          Slope = slope,
+          R_squared = r2,
+          P_value = pval
+        )
+    }
+  }
+}
+
+# Optional: Adjust p-values for multiple testing (FDR)
+results_df <- results_df %>%
+  mutate(P_adj = p.adjust(P_value, method = "fdr"))
+
+results_df$FDR <- p.adjust(results_df$P_value, method = "fdr")
+
+# Save results to CSV
+write.csv(results_df, "WGCNA_trait_ME_regression_results.csv", row.names = FALSE)
+
+# Done!
+print("Regression results saved to WGCNA_trait_ME_regression_results.csv")
+```
+
+```{r}
+#Next we can visualize the association and clustering between the MEs and phenotypes
+library(dplyr)
+library(tidyr)
+library(pheatmap)
+library(tibble)
+library(ggplot2)
+
+# Pivot your results_df to matrix of R_squared values:
+r2_mat <- results_df %>%
+  select(Trait, Module, R_squared) %>%
+  pivot_wider(names_from = Module, values_from = R_squared) %>%
+  column_to_rownames(var = "Trait") %>%
+  as.matrix()
+
+# Replace NA with 0 (means no explanatory power)
+r2_mat[is.na(r2_mat)] <- 0
+
+# Plot heatmap with clustering
+heatmap <- pheatmap(r2_mat,
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         scale = "none",
+         main = "Phenotype clustering by ME association (R²)",
+         fontsize_row = 10,
+         fontsize_col = 10,
+         color = colorRampPalette(c("white", "yellow", "red"))(50) 
+         )
+print(heatmap)
+
+ggsave("ME_trait_heatmap_R2.png", dpi = 300)
+```
+```{r}
+#Figure out the threshold of significance for the MEs
+n <- 17  # number of genotypes
+alpha <- 0.05
+F_crit <- qf(1 - alpha, df1 = 1, df2 = n - 2)
+R2_threshold <- F_crit / (F_crit + (n - 2))
+
+print(paste("Theoretical R² threshold at alpha =", alpha, "is", round(R2_threshold, 3)))
+```
+
+```{r}
+#Since we lose significance by correction, let's record and sort by suggestive results (R2 >.23, FDR<.1)
+suggestive_results <- results_df %>%
+  filter(R_squared > 0.3, FDR < .1) %>%
+  arrange(desc(R_squared))
+
+
+results_df <- results_df %>%
+  mutate(Significance = case_when(
+    FDR < 0.05 ~ "Significant (FDR < 0.05)",
+    R_squared > 0.3 ~ "Suggestive (R² > 0.3)",
+    TRUE ~ "Not significant"
+  ))
+```
+
+```{r}
+#Annotate the heatmap based on these thresholds
+heatmap_data <- results_df %>%
+  mutate(Significance = case_when(
+    FDR < 0.05 ~ "Significant",
+    R_squared > 0.3 ~ "Suggestive",
+    TRUE ~ "Not significant"
+  ))
+
+library(ggplot2)
+
+heatmap_plot <- ggplot(heatmap_data, aes(x = Trait, y = Module, fill = R_squared)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "white", mid = "lightblue", high = "blue", midpoint = 0.3,
+    name = "R²"
+  ) +
+  geom_text(aes(label = ifelse(Significance == "Significant", "*",
+                        ifelse(Significance == "Suggestive", "•", ""))),
+            color = "black", size = 4) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Module–Trait Association Heatmap",
+       subtitle = "R² values with markers for significance (* = FDR < 0.05, • = R² > 0.3)")
+
+print(heatmap_plot)
+
+ggsave("ME_trait_heatmap.png", heatmap_plot, width = 8, height = 6, dpi = 300)
+
+```
