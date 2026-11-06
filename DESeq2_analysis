@@ -1,0 +1,344 @@
+```{r}
+# Load necessary libraries to run DEseq2 and make figures
+library(DESeq2)
+library(pheatmap)
+library(RColorBrewer)
+library(ggplot2)
+library(dplyr)
+library(apeglm)
+library(readr)
+library(clusterProfiler)
+library(AnnotationForge)
+library(tinytex)
+```
+
+```{r}
+# Load count matrix
+# Rows are genes, columns are samples
+count_data <- read.csv("path_to_RNAseq_read_counts.csv", row.names=1)
+
+# Sample names
+samples <- c("WT-2", "WT-4", "WT-5", "WT-6",
+             "null-1", "null-2", "null-3", "null-4",
+             "tlo34-1", "tlo34-2", "tlo34-3", "tlo34-4",
+             "tlo2-1", "tlo2-2", "tlo2-3", "tlo2-4",
+             "tlo3-1", "tlo3-2", "tlo3-3", "tlo3-4",
+             "tlo16-1", "tlo16-2", "tlo16-3", "tlo16-4",
+             "tlo1-1", "tlo1-2", "tlo1-3", "tlo1-4",
+             "tlo4-1", "tlo4-2", "tlo4-3", "tlo4-4",
+             "tlo11-1", "tlo11-2", "tlo11-3", "tlo11-4",
+             "tlo34.tlo2-1", "tlo34.tlo2-2", "tlo34.tlo2-3", "tlo34.tlo2-4",
+             "tlo5-1", "tlo5-2", "tlo5-3", "tlo5-4",
+             "tlo7-1", "tlo7-2", "tlo7-3", "tlo7-4",
+             "tlo8-1", "tlo8-2", "tlo8-3", "tlo8-4",
+             "tlo10-1", "tlo10-2", "tlo10-3", "tlo10-4",
+             "tlo12-1", "tlo12-2", "tlo12-3", "tlo12-4",
+             "tlo13-1", "tlo13-2", "tlo13-3", "tlo13-4",
+             "tlo9-1", "tlo9-2", "tlo9-3", "tlo9-4",
+             "tlo9.tlo10-1", "tlo9.tlo10-2", "tlo9.tlo10-3", "tlo9.tlo10-4")
+
+
+# Example metadata (sample metadata)
+metadata <- data.frame(
+  genotype = factor(c(rep("WT", 4),
+                      rep("null", 4),
+                      rep("tlo34", 4),
+                      rep("tlo2", 4),
+                      rep("tlo3", 4),
+                      rep("tlo16", 4),
+                      rep("tlo1", 4),
+                      rep("tlo4", 4),
+                      rep("tlo11", 4),
+                      rep("tlo34.tlo2", 4),
+                      rep("tlo5", 4),
+                      rep("tlo7", 4),
+                      rep("tlo8", 4),
+                      rep("tlo10", 4),
+                      rep("tlo12", 4),
+                      rep("tlo13", 4),
+                      rep("tlo9", 4),
+                      rep("tlo9.tlo10", 4)))
+)
+
+```
+
+```{r}
+# Create DESeq object
+#Use the adjusted genotype names in your analysis
+# Include any major sources of variation found in the PCA in the design formula
+dds <- DESeqDataSetFromMatrix(countData = count_data,
+                              colData = metadata,
+                              design = ~ genotype)
+```
+
+```{r}
+#Normalization of raw data that exists in the dds
+# This ensures that differences such as gene length and library size and composition will be accounted for
+dds <- estimateSizeFactors(dds)
+
+# View the size factors used for normalization
+sizeFactors(dds)
+```
+
+```{r}
+# EXtraction of normalized counts from dds
+normalized_counts <- counts(dds, normalized=TRUE)
+
+#View normalized counts
+View(normalized_counts)
+
+write.csv(normalized_counts, file = "normalized_counts_align2.csv")
+```
+
+```{r}
+# Next, we can move on to unsupervised clustering analyses visualization
+  # This includes hierarchical clustering heatmaps and PCA plots
+
+# First, we need to log transform the data
+  #DEseq2 moderates the variance across the mean
+
+vsd_dds <- vst(dds, blind = TRUE)
+
+```
+
+```{r}
+# Hierarchical clustering with correlation heatmaps will tell us how similar the biological replicates are to each other, with 1 being perfect correlation
+
+#Extract the vst matrix from the object
+vsd_matrix <- assay(vsd_dds)
+
+# Compute pairwise correlation values
+vsd_cor <- cor(vsd_matrix)
+
+View(vsd_cor)
+```
+
+
+```{r}
+# Visualize the correlation values with a heatmap
+#Save heatmap as .png
+png("heatmap_align2.png", width=1000, height=1000)
+pheatmap(vsd_cor)
+```
+
+```{r}
+# Principal component analysis to find greatest variation in the dataset
+  #Samples are scored based on their influence on the PCs with more similar gene expression profiles clustering together on the plot
+pca_plot <- plotPCA(vsd_dds, intgroup="genotype", returnData=TRUE)
+
+# Perform PCA using prcomp
+pca_results <- prcomp(t(assay(vsd_dds)))
+
+# Get the proportion of variance explained by each principal component
+percent_var <- pca_results$sdev^2 / sum(pca_results$sdev^2)
+
+# Get the percent variance for PC1 and PC2
+percent_var_PC1 <- percent_var[1] * 100
+percent_var_PC2 <- percent_var[2] * 100
+
+# Print the results
+percent_var_PC1
+percent_var_PC2
+```
+
+```{r}
+# Get the proportion of variance explained by PC3 and PC4
+percent_var_PC3 <- pca_results$sdev[3]^2 / sum(pca_results$sdev^2) * 100
+percent_var_PC4 <- pca_results$sdev[4]^2 / sum(pca_results$sdev^2) * 100
+
+# Create a data frame for plotting
+pca_data <- as.data.frame(pca_results$x)
+pca_data$genotype <- colData(vsd_dds)$genotype
+
+```
+
+
+```{r}
+# Create PCA plot with custom colors
+ggplot(pca_plot, aes(PC1, PC2, color=genotype)) +
+  geom_point(size=3) +  # Adjust the size of the points if needed
+  scale_color_manual(values=c("WT" = "black", "tlo1"="blue", "tlo3"="#ff7f0e", "tlo34"="darkblue", 
+                              "tlo9"="cyan4", "tlo10"="skyblue", "tlo12"="cyan",
+                              "tlo2"="yellow", "tlo4"="magenta", "tlo5"="#bcbd22",
+                              "tlo7"="#17becf", "tlo8"="#1f77b4", "tlo11"="magenta3",
+                              "tlo13"="pink", "tlo16"="#d62728", "tlo34.tlo2"="green",
+                              "tlo9.tlo10"="purple", "null"="gray")) +
+  theme_minimal() +  # Optional: change the theme
+  labs(title="PCA Plot", 
+       x=paste0("PC1: ", round(percent_var_PC1, 2), "% variance"), 
+       y=paste0("PC2: ", round(percent_var_PC2, 2), "% variance"))
+
+```
+
+```{r}
+ggsave(filename = "PCAplot_align2.png", plot = last_plot(), 
+       width = 10, height = 10, dpi = 300, bg = "white")
+```
+
+```{r}
+# Plot PC3 vs PC4
+ggplot(pca_data, aes(x=PC3, y=PC4, color=genotype)) +
+  geom_point(size=3) +
+  scale_color_manual(values=c("WT" = "black", "tlo1"="blue", "tlo3"="#ff7f0e", "tlo34"="darkblue", 
+                              "tlo9"="cyan4", "tlo10"="skyblue", "tlo12"="cyan",
+                              "tlo2"="yellow", "tlo4"="magenta", "tlo5"="#bcbd22",
+                              "tlo7"="#17becf", "tlo8"="#1f77b4", "tlo11"="magenta3",
+                              "tlo13"="pink", "tlo16"="#d62728", "tlo34.tlo2"="green",
+                              "tlo9.tlo10"="purple", "null"="gray")) +
+  labs(title="PCA Plot: PC3 vs PC4", 
+       x=paste0("PC3: ", round(percent_var_PC3, 2), "% variance"), 
+       y=paste0("PC4: ", round(percent_var_PC4, 2), "% variance")) +
+  theme_minimal()
+```
+
+```{r}
+ggsave(filename = "var_PCAplotPC3+4_align2.png", plot = last_plot(), 
+       width = 10, height = 10, dpi = 300, bg = "white")
+```
+
+
+
+#End of full dataset pre-processing
+
+```{r}
+# Run DEseq2 analysis
+  #Includes fitting raw counts to the negative binomial model
+dds <- DESeq(dds)
+
+```
+
+```{r}
+# Exploring how well the data fit the DESeq model
+  #Probability of log2-fold changes being significantly different from zero
+# Get the means/variables for each gene
+# We want to see the dispersions decrease as the mean increases, as well as clustering around the red max likelihood line
+plotDispEsts(dds)
+```
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+# Start of individual mutant analysis-------------------------------
+
+
+
+
+```{r}
+
+#Compare mutant vs WT directly using the contrast argument
+results_tlo1 <- results(dds, contrast = c("genotype", "tlo1", "WT"))
+
+
+#View results summary
+summary(results_tlo1)
+
+results_tlo1
+```
+
+```{r}
+plotMA(results_tlo1, ylim=c(-15,15))
+```
+
+```{r}
+#USe shrinkage to get more accurate log2 fold changes 
+tlo1_res <- lfcShrink(dds, 
+                      contrast = c("genotype", "tlo1", "WT"),
+                      type = "ashr")  # Specify apeglm method
+
+#Plot MA plot again
+plotMA(tlo1_res, ylim=c(-15,15))
+```
+```{r}
+# Rsults table
+mcols(tlo1_res)
+
+head(tlo1_res, n=10)
+
+#We need to control for false positives
+
+summary(tlo1_res)
+```
+
+```{r}
+#Using a fold-change threshold to sift through the large number of DE genes
+tlo1_res <- results(dds, contrast =c("genotype", "tlo1", "WT"))
+
+
+#reshrink fold changes to get new number of DE genes
+tlo1_shrink <- lfcShrink(dds, contrast = c("genotype", "tlo1", 
+                                        "WT"), res = tlo1_res, type = "ashr")
+
+
+#run summary function again
+summary(tlo1_shrink)
+
+head(tlo1_shrink)
+
+write.csv(tlo1_shrink, file = "tlo1_shrink.log1.csv") #Download and save .csv with reduced list of DE genes
+```
+
+```{r}
+#We still have a good amount of NA genes and non-significant values. Only about 700 genes are actually <0.05. 
+
+tlo1_shrink_filtered <- tlo1_shrink[!is.na(tlo1_shrink$padj), ]
+
+head(tlo1_shrink_filtered)
+write.csv(tlo1_shrink_filtered, file = "tlo1_shrink_filtered.csv")
+```
+
+```{r}
+# Next we have to filter out high padj values that we don't care about
+# Define thresholds
+padj_threshold <- 0.05   # Standard significance threshold
+lfc_threshold <- 1       # Log2 fold change threshold (adjust as needed)
+
+# Filter based on adjusted p-value and log2 fold change
+tlo1_significant <- tlo1_shrink_filtered[tlo1_shrink_filtered$padj < padj_threshold & 
+                                       abs(tlo1_shrink_filtered$log2FoldChange) >= lfc_threshold, ]
+
+head(tlo1_significant)
+
+write.csv(tlo1_significant, file = "tlo1_sig.csv")
+```
+
+```{r}
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+```
+
+```{r}
+# Josh's script can convert orf identifiers to gene names and vice versa
+# The list of DEGs can be converted to a GO ontology compatible format so enrichment analysis can be run
+#This translation is necessary in order to be able to get GO_term connection to the Gene names 
+
+# ****BE SURE TO GIVE orf IDs a header like 'Gene' and re-upload into R from edited .csv
+tlo1_significant <- read.csv("tlo1_sig.csv")
+
+orfList <- tlo1_significant$ORF
+DEGs <- orfToName(orfList)
+
+print(DEGs)
+
+write.csv(DEGs, file = "tlo1_DEGs_align2.csv")
+ 
+```
+
+
+
+```{r}
+#BE SURE TO COMBINE sig values to DEG .csv
+
+# Now that we have our significant filtered DEG list, we can perform a GO enrichment analysis to assess whether certain functions are overrepresented in our list!
+
+# Load the significant DEGs
+deg_list <- read.csv("tlo1_DEGs_align2.csv")
+
+# Assuming your gene column is named 'Gene' (adjust based on your actual column name)
+gene_list <- deg_list$Gene
+
+head(gene_list)
+```
