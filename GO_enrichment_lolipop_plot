@@ -1,0 +1,83 @@
+Before using this script, you'll need to run your list of genes through the three GO term categories in Candida Genome Database (CGD) or obtain the list through soem other site, such as PANTHER GO and save the output as an excel file
+
+```{r}
+#Load file with GO enrichment results from CGD
+library(tidyverse)
+library(readxl)
+
+go_df <- read_xlsx("path_to_GO_term_CGD_output.xlsx", sheet = "go_term_finder_results")
+
+```
+
+```{r}
+#Get ratios of gene enrichment to total group queried
+
+go_df <- go_df %>%
+  mutate(
+    GeneRatio = `Query Count` / `Query Total`,
+    negLogFDR = -log10(FDR)
+  )
+```
+
+```{r}
+#Apply significance cutoff (0.01 for shared TLO GO terms)
+
+go_df <- go_df %>%
+  filter(FDR < 0.05)
+```
+
+```{r}
+#Select top GO terms per category to prevent plot from being too busy
+
+go_df <- go_df %>%
+  group_by(Aspect) %>%
+  arrange("Fold Enrichment") %>%
+  slice_head(n = 10) %>%
+  ungroup()
+```
+
+```{r}
+#Time to build the plot!
+
+library(tidyverse)
+library(stringr)
+
+# Fix factor levels
+go_df$Aspect <- factor(go_df$Aspect,
+                       levels = c("Biological Process",
+                                  "Molecular Function",
+                                  "Cellular Component"))
+
+# Select top terms by enrichment (not FDR if that's your goal)
+go_df <- go_df %>%
+  group_by(Aspect) %>%
+  arrange(desc(`Fold Enrichment`)) %>%
+  slice_head(n = 5) %>%
+  ungroup()
+
+# Wrap long terms
+go_df$`GO Term` <- str_wrap(go_df$`GO Term`, width = 50)
+
+# Plot
+comb_enrich_dotplot <- ggplot(go_df,
+       aes(x = reorder(`GO Term`, `Fold Enrichment`),
+           y = `Fold Enrichment`)) +
+  geom_point(aes(size = `Query Count`,
+                 color = FDR)) +
+  facet_wrap(~ Aspect, scales = "free_y") +
+  coord_flip() +
+  scale_x_discrete(limits = rev) +
+  theme_classic() +
+  theme(text = element_text(size = 20)) +
+  scale_color_gradient(low = "orange", high = "purple") +
+  scale_size_continuous(
+    breaks = c(2, 4, 6, 8, 10),
+    range = c(5, 15)) +
+  labs(x = "GO Term",
+       y = "Fold Enrichment",
+       size = "Gene Count",
+       color = "FDR")
+print(comb_enrich_dotplot)
+
+ggsave(comb_enrich_dotplot, file = "_GO_enrich_dotplot.png", units = "in", height = 12, width = 20, dpi = 600)
+```
