@@ -38,7 +38,7 @@ genotype_order <- c(
 library(readr)
 
 # Define the path with file.path() (recommended for cross-platform use)
-filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "tlo_growth_df.csv")
+filepath <- file.path("path_to_data.csv")
 
 # Read the CSV
 df <- read_csv(filepath)
@@ -195,7 +195,7 @@ ggsave("normalized_dt_plot_no_dKOs_delta.png", width = 8, height = 6, dpi = 300)
 library(readr)
 
 # Define the path with file.path() (recommended for cross-platform use)
-filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "tlo_stress_df.csv")
+filepath <- file.path("path_to_stressdata.csv")
 
 # Read the CSV
 df <- read_csv(filepath)
@@ -372,7 +372,7 @@ ggsave("normalized_dt_stress_no_dKOs.png", width = 8, height = 6, dpi = 300)
 library(readr)
 
 # Define the path with file.path() (recommended for cross-platform use)
-filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "dKO1_tlo_comb_df.csv")
+filepath <- file.path("path_to_dKO1_comb_data.csv")
 
 # Read the CSV
 df <- read_csv(filepath)
@@ -554,7 +554,7 @@ dKO2 <- in_df$dKO2
 library(readr)
 
 # Define the path with file.path() (recommended for cross-platform use)
-filepath <- file.path("C:", "Users", "simonton", "OneDrive - UW-Madison", "Research", "Growth Assays", "dKO2_tlo_comb_df.csv")
+filepath <- file.path("path_to_dKO2_comb_data.csv")
 
 # Read the CSV
 df <- read_csv(filepath)
