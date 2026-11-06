@@ -1,0 +1,498 @@
+```{r}
+# Call necessary libraries/install necessary packages
+# devtools::install_github("kevinblighe/CorLevelPlot")
+#if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("impute")
+
+library(CorLevelPlot)
+library(WGCNA)
+library(preprocessCore)
+library(impute)
+library(DESeq2)
+library(GEOquery)
+library(tidyverse)
+library(gridExtra)
+library(magrittr)
+```
+
+```{r}
+# read in the data, then clean it
+count_data <- read.csv("path_to_RNAseq_read_counts.csv", row.names=1)
+data <- count_data
+
+#get metadata
+metadata <- data.frame(
+  genotype = factor(c(rep("WT", 4),
+                      rep("tlo34", 4),
+                      rep("tlo2", 4),
+                      rep("tlo3", 4),
+                      rep("tlo16", 4),
+                      rep("tlo1", 4),
+                      rep("tlo4", 4),
+                      rep("tlo11", 4),
+                      rep("tlo34.tlo2", 4),
+                      rep("tlo5", 4),
+                      rep("tlo7", 4),
+                      rep("tlo8", 4),
+                      rep("tlo10", 4),
+                      rep("tlo12", 4),
+                      rep("tlo13", 4),
+                      rep("tlo9", 4),
+                      rep("tlo9.tlo10", 4)))
+)
+```
+
+
+
+```{r}
+#prepare expression data
+#Genes need to be in columns and samples need to be in rows , so we need to transpose the data
+
+norm.data <- count_data
+
+gsg <- goodSamplesGenes(t(norm.data))
+summary(gsg)
+
+#Evaluate outliers
+gsg$allOK
+
+#Need to exclude the outlier genes and check the samples
+
+table(gsg$goodGenes)
+table(gsg$goodSamples)
+```
+
+
+
+```{r}
+# Remove genes that are detected as outliers
+
+data <- norm.data[gsg$goodGenes == TRUE,]
+nrow(norm.data)
+```
+
+```{r}
+# Use pvclust per MZA to check sample clustering
+library(pvclust)
+pvclust <- pvclust(data, method = "euclidean",
+                   method.hclust = "complete", nboot = 10)
+
+
+pvclust.plot <- plot(pvclust)
+
+
+```
+
+
+```{r}
+# Normalization performed by deseq2
+ #create dds
+dds_WGCNA <- DESeqDataSetFromMatrix(countData = data,
+                                    colData = metadata,
+                                    design = ~ 1)  #not specifying model because we want the dds to perform variance stabilizing transformation
+
+
+#Remove all genes with low counts (< 15) in more than 75% of the samples (72*.075=54)
+# Suggested by WGCNA on RNAseq FAQ
+
+dds_WGCNA75 <- dds_WGCNA[rowSums(counts(dds_WGCNA) >= 15) >= 54,]
+nrow(dds_WGCNA75) #5627 genes
+```
+
+
+```{r}
+# Perform variance stabilization
+dds_WGCNA_norm <- vst(dds_WGCNA75)
+
+
+# Get normalized counts 
+WGCNA_norm.counts <- assay(dds_WGCNA_norm) %>%
+  t() #WGCNA require row and column names to be transposed 
+```
+
+```{r}
+# Network construction
+
+# Choose a set of soft-thresholding powers
+power <- c(c(1:10), seq(from= 12, to= 50, by = 2))
+```
+
+```{r}
+# Call network topology and analysis function
+
+sft <- pickSoftThreshold(WGCNA_norm.counts,
+                  powerVector = power,
+                  networkType = "signed",
+                  verbose = 5)
+
+
+sft.data <- sft$fitIndices
+```
+
+
+
+```{r}
+# You want to focus on the R-square and mean.k columns in the sft.data vector
+# You want to ideally choose a power that gives you max R-squared and min k (connectivity)
+
+
+# Visualization to pick power
+
+a1 <- ggplot(sft.data, aes(Power, SFT.R.sq, label = Power)) +
+  geom_point() +
+  geom_text(nudge_y = 0.1) +
+  geom_hline(yintercept = 0.8, color = 'red') +
+  labs(x = 'Power', y = 'Scale free topology model fit, signed R^2') +
+  theme_classic()
+
+
+a2 <- ggplot(sft.data, aes(Power, mean.k., label = Power)) +
+  geom_point() +
+  geom_text(nudge_y = 0.1) +
+  labs(x = 'Power', y = 'Mean Connectivity') +
+  theme_classic()
+
+
+# Visualize the two plots together
+grid.arrange(a1, a2, nrow = 2)  # 12 seems to minimize the mean.k with the R-sq being greater than 0.8 (above red line) without being excessively large
+
+# You can experiment with different powers to see how they impact clustering and downstream analysis of your results
+```
+
+
+
+```{r}
+# Next, we want to identify modules
+
+# Convert matrix to numeric
+
+WGCNA_norm.counts[] <- sapply(WGCNA_norm.counts, as.numeric)
+
+soft_power <- 16
+temp_cor <- cor
+cor <- WGCNA::cor
+```
+
+
+```{r}
+# Memory estimate w.r.t blocksize
+
+# May need to tweak the default parameters for your dataset, so look up options for what may work best for you
+bwnet <- blockwiseModules(WGCNA_norm.counts,
+                 maxBlockSize = 6000, #Amount of genes to run in one block, while taking into account memory access with personal machine
+                 TOMType = "signed",
+                 power = soft_power, # ~16
+                 mergeCutHeight = 0.1, #increasing branch stringency
+                 numericLabels = FALSE,
+                 randomSeed = 1234,
+                 minModuleSize = 20,
+                 deepSplit = 3,
+                 verbose = 3)
+
+                
+```
+
+```{r}
+#Check effect of high soft power
+table(bwnet$colors)
+```
+
+```{r}
+# Reassign correlation function to the original correlation function
+cor <- temp_cor
+```
+
+```{r}
+# Module eigengenes
+
+module_eigengenes <- bwnet$MEs
+
+#print out a preview
+head(module_eigengenes)
+
+# get number of genes for each module
+table(bwnet$colors)
+```
+
+
+```{r}
+# 20 genes were excluded from the blockwiseModules calculation because of too many missing samples or not enough variance so we must reset our color vector to reflect this reduction
+
+# Assuming 'bwnet' is the output from blockwiseModules
+gene_lists <- sapply(bwnet$dendrograms, function(dendro) rownames(dds_WGCNA_norm)[dendro$order])  
+print(gene_lists)
+```
+
+
+```{r}
+# Assuming 'unmergedColors' and 'mergedColors' are your original color vectors
+unmergedColorsUpdated <- bwnet$unmergedColors[gene_lists]
+mergedColorsUpdated <- bwnet$colors[gene_lists]
+
+# Check lengths
+length(unmergedColorsUpdated)  # Should match the number of genes in the dendrogram
+length(mergedColorsUpdated)    # Should match the number of genes in the dendrogram
+
+```
+
+```{r}
+# plot the dendrogram and module colors before and after merging underneath
+
+plotDendroAndColors(bwnet$dendrograms[[1]], 
+                    cbind(unmergedColorsUpdated, mergedColorsUpdated),
+                    c("unmerged", "merged"),
+                    dendroLabels = FALSE,
+                    addGuide = TRUE,
+                    hang = 0.03,
+                    guideHang = 0.05)
+
+
+# Gray module- all genes that didn't get grouped into other modules were assigned to this one
+```
+
+
+```{r}
+# Moving forward, it seems normal to use merged output?
+
+#We want to compare gene modules to associated traits (in our case, genotypes)
+# The closest to a binary condition we have is non-mutant (WT) vs mutant (tlo deletions and null)
+
+# Relate modules to traits
+# Module trait associations 
+tlo_sample_metadata <- read.csv("tlo_sample_metadata_no_null.csv", row.names = 1 )
+
+
+colData <- tlo_sample_metadata
+
+# Create traits file - binarize categorical variables
+traits <- colData %>%
+  mutate(Condition_bin = ifelse(grepl('Mutant', Condition), 1, 0)) %>%
+  dplyr::select(4)
+
+
+# We may also want to view modules based on what kind of mutant we have (alpha, beta, gamma, etc)
+  # To do this, we must create a new column for each subcondition, where each column has one variable as 1 and the rest as 0
+```
+
+```{r}
+# Convert your categorical variable into a factor
+colData$tlo_mutant <- factor(colData$tlo_mutant, levels = c("WT", "a1", "a3", "a34", "a9", "a10", "a12", "b2", "g4", "g5", "g7", "g8", "g11", "g13", "g16", "a34.b2", "a9.a10"))
+
+# Binarize the categorical column
+tlo_mutant.out <- binarizeCategoricalColumns(colData$tlo_mutant,
+                           includePairwise = FALSE,
+                           includeLevelVsAll = TRUE,
+                           levelOrder = NULL,
+                           minCount = 1)
+
+# View the result with Genotype included
+View(tlo_mutant.out)
+```
+
+
+```{r}
+# Combine the condition_type data with the traits data so it's all in one data frame
+
+traits <- cbind(traits, tlo_mutant.out) # these traits with be used to associate with the expression data modules
+
+
+
+# Define number of genes and samples
+
+nSamples <- nrow(WGCNA_norm.counts)
+nGenes <- ncol(WGCNA_norm.counts)
+
+
+module.trait.corr <- cor(module_eigengenes, traits, use = 'p')  #This uses Pearson correlation (we are using association relationships that are significant between modules)
+module.trait.corr.pvalues <- corPvalueStudent(module.trait.corr, nSamples)
+  view(module.trait.corr.pvalues)
+
+# We can also view the module correlations as a heatmap
+```
+
+
+```{r}
+# Visualize module trait association as heatmap
+
+#Be sure that your row names for each data frame match, otherwise you'll get an empty vector output!
+
+
+# Now merge based on the Row.names column
+heatmap.data <- merge(module_eigengenes, traits, by = 'row.names')
+
+# Check the first few rows
+head(heatmap.data)
+
+#Save heatmap as .png
+png("WGCNA.module.var.no.null.png", width=2400, height=1000)
+
+heatmap.data <- heatmap.data %>%
+  column_to_rownames(var = 'Row.names')
+
+CorLevelPlot(heatmap.data,    # Make sure you update the matrix numbers for x and y depending on the size of your vectors
+             x = names(heatmap.data)[34:50], #Vector of the column names
+             y = names(heatmap.data)[1:33],
+             col = c("blue1", "skyblue", "white", "pink", "red")) 
+
+# close plot device
+dev.off()
+
+```
+```{r}
+# Try building the trait-module correlation heatmap in pheatmap instead of through WGCNA
+library(WGCNA)
+
+cor_mat <- cor(heatmap.data[,34:50], heatmap.data[,1:33], use = "p")
+
+p_mat <- corPvalueStudent(cor_mat, nSamples = nrow(heatmap.data))
+
+stars <- ifelse(p_mat < 0.001, "***",
+         ifelse(p_mat < 0.01, "**",
+         ifelse(p_mat < 0.05, "*", "")))
+
+
+png("WGCNA.module.var.no.null.png", width = 12, height = 8, units = "in", res = 600)
+
+
+library(pheatmap)
+
+heat.map <- pheatmap(
+  cor_mat,
+  display_numbers = stars,
+  number_color = "black",
+  fontsize_number = 16,
+  fontsize_row = 10,
+  fontsize_col = 10,
+  color = colorRampPalette(c("blue1", "skyblue", "white", "pink", "red"))(50)
+)
+
+dev.off()
+
+```
+
+
+
+
+```{r}
+# Merge the module eigengenes with traits (tlo genotypes)
+heatmap.data <- merge(module_eigengenes, traits, by = 'row.names')
+
+# Check the first few rows to ensure it's correct
+head(heatmap.data)
+
+# Remove the Row.names column after merging
+heatmap.data <- heatmap.data %>%
+  column_to_rownames(var = 'Row.names')
+
+# Correlation matrix between module eigengenes and genotypes (tlo mutants)
+cor_matrix <- cor(heatmap.data[, 1:33], heatmap.data[, 34:ncol(heatmap.data)], method = "pearson")
+
+# Perform hierarchical clustering on the correlation matrix (for the genotypes)
+col_dendrogram <- hclust(dist(t(cor_matrix)), method = "complete")  # Clustering genotypes based on ME associations
+
+# Plot the dendrogram
+png("WGCNA_module_trait_dendrogram.png", width=2400, height=1000)
+
+# Plot the dendrogram for the tlo genotypes
+plot(col_dendrogram, main = "Hierarchical Clustering of TLO Genotypes Based on Module Eigengene Associations",
+     xlab = "Genotypes", ylab = "Distance", sub = "",
+     cex.main = 1.5, cex.lab = 1.2, cex.axis = 1.1)
+
+# Close the plot device
+dev.off()
+
+```
+```{r}
+# Save dendrogram construction data for TLOs vs. MEs
+
+write.csv(cor_matrix, file = "TLO_ME_dendro_data.csv")
+```
+
+
+
+```{r}
+#We can calculate the module membership and associated p-values that our association data tells us
+# In other words, this can shed light on the differences in gene expression profiles between our different groups
+
+# The module membership/intramodule connectivity is calculated as the correlation of the eigengene and the genes
+# This quantifies the similarity of all genes on the array to every module
+
+module.membership.measure <- cor(module_eigengenes, WGCNA_norm.counts, use = 'p')
+
+module.membership.measure.pvalue <- corPvalueStudent(module.membership.measure, nSamples)
+
+module.membership.measure.pvalue[1:10,1:10] # You can further look into the significant genes of interest and dig in more
+
+# Save output as .csv
+write.csv(module.membership.measure.pvalue, "WGCNA_module_gene_pvals_no_null.csv")
+```
+
+
+```{r}
+
+#We can plot a 2D figure of the relatedness between the different modules
+
+# Assuming 'bwnet' contains WGCNA results, and 'MEs' are the module eigengenes
+
+# Step 1: Extract module colors (assigned to each gene)
+moduleColors <- unique(bwnet$colors)  # Extract unique module colors
+
+# Step 2: Create a named vector where module colors correspond to eigengene names
+# Eigengenes typically have names like "MEblue", "MEturquoise", etc.
+eigengeneColors <- setNames(moduleColors, paste0("ME", moduleColors))
+
+# Step 3: Assign colors to eigengenes
+moduleEigengeneColors <- eigengeneColors[names(module_eigengenes)]  # Match colors to the eigengene names
+
+# Step 4: Perform multidimensional scaling (MDS)
+dissMEs <- (1 - cor(module_eigengenes, use = "p")) / 2  # Dissimilarity between module eigengenes
+cmd1 <- cmdscale(as.dist(dissMEs), k = 2)  # Perform MDS
+
+
+# Open a PNG device
+png("MDS_plot_no_null.png", width = 800, height = 600)
+
+# Step 5: Plot MDS with manually assigned colors
+plot(cmd1, 
+     col = moduleEigengeneColors,  # Use the manually assigned colors
+     pch = 19,                     # Solid points
+     xlab = "Scaling Dimension 1", 
+     ylab = "Scaling Dimension 2",
+     main = "MDS Plot of Module Eigengenes with Manual Colors")
+
+# Optionally add labels for each module
+text(cmd1, labels = names(module_eigengenes), pos = 3, cex = 0.8, col = "black")
+
+# Close the device to save the file
+dev.off()
+```
+
+
+
+```{r}
+#transpose wgcna module assignment .csv so I can run cytoscape without the tlo-null interference
+
+wgcna_transposed_modules <- bwnet$colors
+
+write.csv(wgcna_transposed_modules, "WGCNA_module_colors.csv")
+```
+
+
+```{r}
+## Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+#install.packages('devtools')
+library('devtools')
+#devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+# Josh's script can convert orf identifiers to gene names and vice versa
+# The list of DEGs can be converted to a GO ontology compatible format so enrichment analysis can be run
+# This translation is necessary in order to be able to get GO_term connection to the Gene names
+# ****BE SURE TO GIVE orf IDs a header like 'Gene' and re-upload into R from edited .csv
+orf_file_significant <- read.csv("WGCNA_module_colors.csv")
+orfList <- orf_file_significant$ORF   #Make sure to call the correct name of the column- R does not like spaces!
+DEGs <- orfToName(orfList)
+print(DEGs)
+write.csv(DEGs, file = "WGCNA_module_colors_gene_ids.csv")   #This converts your converted output to a .csv file that you can open with Excel!
+```
