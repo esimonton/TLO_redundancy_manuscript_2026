@@ -1,0 +1,153 @@
+# You can use the following scripts to calculate the transcripts per million (TPM) ffrom your transcriptomic dataset
+# Using the RNAseq_read_counts from all samples and all genes you'll end up with normalized, comparable counts across samples and genes for expression comparisons
+
+```{r}
+# Calculate TPM based on all genes 
+
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+
+```{r}
+# Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
+
+# install.packages('devtools')
+library('devtools')
+# devtools::install_github('joshuamwang/CAlbicansR')
+library('CAlbicansR')
+
+
+orfList <- in_df$Raw$ORF
+Genes <- orfToName(orfList)
+
+print(Genes)
+
+
+in_df$Raw$Genes <- Genes
+```
+
+```{r}
+write.csv(in_df$Raw$Genes, file = "tlo_comb_raw_counts_2ndalign_geneIDs.csv")
+```
+
+```{r}
+#Calculate gene lengths based on .gff file coordinates
+
+# Install required packages if not already installed
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("rtracklayer")
+
+library("rtracklayer")
+
+
+# Import the GFF file
+gff_file <- import("C:/Users/simonton/Downloads/C_albicans_SC5314_A21_current_features.gff")
+
+# View the structure of the imported GFF file
+head(gff_file)
+```
+
+```{r}
+# Subset only rows corresponding to "gene" annotations
+genes <- gff_file[gff_file$type == "gene", ]
+
+# Preview the genes data
+head(genes)
+```
+
+```{r}
+# Calculate gene lengths (absolute length)
+gene_lengths <- width(genes)
+
+# Add gene lengths as a new column to the `genes` data
+genes$gene_length <- gene_lengths
+
+
+# Extract relevant columns (e.g., gene ID, start, end, length)
+gene_data <- data.frame(
+  GeneID = mcols(genes)$ID,  # Replace "ID" with the actual column name for gene IDs in your file
+  Start = start(genes),
+  End = end(genes),
+  Length = gene_lengths
+)
+
+# View the resulting data frame
+head(gene_data)
+
+write.csv(gene_data, "Ca21_gene_lengths.csv", row.names = FALSE)
+```
+
+```{r}
+#Combine gene length columns to counts file and save as .csv
+#Use file with gene names, lengths, and raw counts to calculate the TPM for the C. albicans genome reads
+
+# Load gene count matrix and gene lengths
+# count_matrix: a matrix/data frame of raw counts (genes x samples)
+# gene_lengths: a vector of gene lengths in base pairs (same order as count_matrix rows)
+
+# Example: Load raw counts and gene lengths
+# Load the CSV file
+data <- read.csv("C:/Users/simonton/Downloads/TLO_TPM_expression_YPD30.csv")
+
+# Preview the data
+head(data)
+
+# Convert gene lengths to kilobases
+data$Length_kb <- data$Length / 1000
+
+# Identify sample columns dynamically (exclude "orf_IDs", "Genes", "Start", "End", etc.)
+sample_columns <- colnames(data)[!(colnames(data) %in% c("ORF", "Gene", "Start", "End", "Length", "Length_kb"))]
+
+# Extract raw counts and gene lengths
+raw_counts <- data[, sample_columns]
+lengths_kb <- data$Length_kb
+
+# Check for invalid values
+if (any(is.na(lengths_kb) | lengths_kb == 0)) {
+  stop("Gene lengths contain zero or missing values. Check the 'Length' column.")
+}
+if (!all(sapply(raw_counts, is.numeric))) {
+  stop("Raw count columns contain non-numeric values. Check the sample columns.")
+}
+
+# Function to calculate TPM
+calculate_tpm <- function(counts, lengths_kb) {
+  # Step 1: Calculate RPK
+  rpk <- sweep(counts, 1, lengths_kb, FUN = "/")
+  rpk[is.na(rpk) | is.infinite(rpk)] <- 0
+  
+  # Step 2: Normalize RPK to TPM
+  scaling_factors <- colSums(rpk)
+  scaling_factors[scaling_factors == 0] <- NA
+  tpm <- sweep(rpk, 2, scaling_factors, FUN = "/") * 1e6
+  tpm[is.na(tpm)] <- 0
+  
+  return(tpm)
+}
+
+# Calculate TPM
+tpm_matrix <- calculate_tpm(as.matrix(raw_counts), lengths_kb)
+
+# Combine TPM results with gene names
+tpm_data <- cbind(Gene = data$Gene, as.data.frame(tpm_matrix))
+
+# Save the TPM data to a CSV file
+write.csv(tpm_data, "TPM_normalized_data_all_mutants.csv", row.names = FALSE)
+
+# Preview the first few rows of the resulting TPM data
+head(tpm_data)
+
+```
