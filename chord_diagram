@@ -1,0 +1,150 @@
+# Construct a chord diagram based on WGCNA ME-Genotype association
+# Fig 8A
+
+```{r}
+#Make a chord diagram that demonstrates TLO mutant association with modules (no-null edition)
+# Load necessary library
+library(circlize)
+
+
+# Define module colors (for other modules)
+module_colors <- c(
+  "MEdarkgrey"      = "darkgrey",
+  "MEpink"          = "pink",
+  "MEskyblue"       = "skyblue",
+  "MEsalmon"        = "salmon",
+  "MEsteelblue"     = "steelblue",
+  "MEdarkturquoise" = "darkturquoise",
+  "MEdarkorange"    = "darkorange",
+  "MEgreenyellow"   = "greenyellow",
+  "MEorange"        = "orange",
+  "MEblue"          = "blue",
+  "MEyellow"        = "yellow",
+  "MEblack"         = "black",
+  "MEcyan"          = "cyan",
+  "MEdarkred"       = "darkred",
+  "MEpaleturquoise" = "paleturquoise",
+  "MEsaddlebrown"   = "saddlebrown",
+  "MElightyellow"   = "lightyellow",
+  "MEtan"           = "tan",
+  "MElightgreen"    = "lightgreen",
+  "MEmagenta"       = "magenta",
+  "MEdarkgreen"     = "darkgreen",
+  "MEgrey60"        = "grey60",
+  "MEred"           = "red",
+  "MEviolet"        = "violet",
+  "MEwhite"         = "white",
+  "MEgreen"         = "green",
+  "MEturquoise"     = "turquoise",
+  "MEbrown"         = "brown",
+  "MEpurple"        = "purple",
+  "MElightcyan"     = "lightcyan",
+  "MEmidnightblue"  = "midnightblue",
+  "MEroyalblue"     = "royalblue"
+)
+
+# Define tlo mutant colors based on your specifications
+tlo_colors <- c("tlo1"="cyan",
+                "tlo3"="cyan2",
+                "tlo34"="cyan3",
+                "tlo9"="cyan4",
+                "tlo10"= "deepskyblue",
+                "tlo12"= "dodgerblue",
+                "tlo2"="yellow",
+                "tlo4"="magenta",
+                "tlo5"="magenta1",
+                "tlo7"="magenta2",
+                "tlo8"="magenta3", 
+                "tlo11"="orchid",
+                "tlo13"= "darkorchid",
+                "tlo16"="magenta4",
+                "tlo34-tlo2" = "green",
+                "tlo9/tlo10"= "darkblue"         # Ensure this matches the definition
+)
+
+
+
+# Example of mutant conditions and modules (based on your data)
+module_data <- list(
+MEblack= c("tlo3"),
+MEblue= c("tlo3", "tlo9", "tlo12", "tlo4", "tlo13", "tlo9/tlo10"),
+MEbrown= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo9/tlo10"),
+MEcyan= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo9/tlo10"),
+MEdarkgreen= c("tlo34","tlo4","tlo9/tlo10"),
+MEdarkgrey = c("tlo16", "tlo9/tlo10"),
+MEdarkorange= c("tlo9", "tlo12","tlo11", "tlo13", "tlo9/tlo10"),
+MEdarkred= c("tlo3", "tlo9", "tlo2"),
+MEdarkturquoise= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo9/tlo10"),
+MEgreen= c("tlo1", "tlo3", "tlo12", "tlo4", "tlo9/tlo10"),
+MEgreenyellow= c( "tlo9", "tlo12", "tlo11", "tlo13", "tlo9/tlo10"),
+MEgrey60= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo9/tlo10"),
+MElightcyan= c("tlo3", "tlo4", "tlo8"),
+MElightgreen= c("tlo8"),
+MElightyellow= c("tlo11"),
+
+MEmidnightblue= c("tlo3", "tlo8", "tlo16"),
+MEorange= c("tlo12", "tlo4", "tlo13", "tlo9/tlo10"),
+MEpaleturquoise= c("tlo3", "tlo34", "tlo9", "tlo8", "tlo16"),
+MEpink= c("tlo3", "tlo9", "tlo12", "tlo9/tlo10"),
+MEpurple= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo16", "tlo9/tlo10"),
+MEred= c("tlo3", "tlo9", "tlo12", "tlo13", "tlo9/tlo10"),
+MEroyalblue= c("tlo12", "tlo8", "tlo9/tlo10"),
+MEsaddlebrown= c("tlo3", "tlo34", "tlo12", "tlo8", "tlo9/tlo10"),
+MEsalmon= c("tlo10", "tlo8", "tlo16"),
+MEskyblue= c("tlo5", "tlo8", "tlo16"),
+MEsteelblue= c("tlo5", "tlo8", "tlo16"),
+MEtan= c("tlo12", "tlo9/tlo10"),
+MEturquoise= c("tlo3", "tlo9", "tlo12", "tlo4", "tlo13", "tlo9/tlo10"),
+MEviolet= c("tlo5", "tlo7", "tlo34-tlo2"),
+MEwhite= c("tlo1", "tlo3", "tlo4"),
+MEyellow= c("tlo9", "tlo12", "tlo13", "tlo9/tlo10")
+)
+
+
+# Convert the list into a data frame of TLO mutant and ME module pairs
+mutant_module_pairs <- stack(module_data)
+names(mutant_module_pairs) <- c("TLO", "Module")
+
+# Assign colors based on TLO mutant color for the links
+link_colors <- sapply(mutant_module_pairs$TLO, function(tlo) {
+  if (tlo %in% names(tlo_colors)) {
+    tlo_colors[tlo]
+  } else {
+    "black"  # Default color for unmatched TLOs
+  }
+})
+
+# Define the order for TLO labels (reversed for counterclockwise reading)
+tlo_order <- rev(c("tlo1", "tlo3", "tlo34", "tlo9", "tlo10", "tlo12", 
+                   "tlo2", "tlo4", "tlo5", "tlo7", "tlo8", "tlo11", 
+                   "tlo13", "tlo16", "tlo34-tlo2", "tlo9/tlo10"))
+
+# Define the order for module labels
+module_order <- names(module_colors)
+
+# Combine TLO and module orders
+combined_order <- c(tlo_order, module_order)
+
+# Ensure TLO column is a factor with the specified order
+mutant_module_pairs$TLO <- factor(mutant_module_pairs$TLO, levels = tlo_order)
+
+# Open a PNG device
+png("ordered_ME_chord_colors_no_null_stringent.png", width = 3000, height = 3000, res = 600)  # Adjust resolution as needed
+
+# Create the chord diagram with TLO colors for links and module colors for grid
+chordDiagram(mutant_module_pairs, annotationTrack = "grid", 
+             preAllocateTracks = list(track.height = 0.1), 
+             transparency = 0.5, 
+             grid.col = c(tlo_colors, module_colors),
+             col = link_colors,
+             order = combined_order)  # Set order for the TLO and module labels
+
+# Customize the appearance of the text to read in counterclockwise order
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+}, bg.border = NA)
+
+# Close the PNG device
+dev.off()
+```
