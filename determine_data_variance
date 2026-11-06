@@ -1,0 +1,74 @@
+# Determine the variance of your data for what stats test to use
+
+```{r}
+library(readxl)
+library(dplyr)
+library(car)
+library(purrr)
+library(tibble)
+
+# Read all sheets
+file <- "path_to_combined_phenotype_data.xlsx"
+sheet_names <- excel_sheets(file)
+
+# Exclude LiqFila37
+sheet_names <- setdiff(sheet_names, "LiqFila37")
+
+# Function to analyze one phenotype
+check_variance <- function(sheet) {
+  
+  df <- read_excel(file, sheet = sheet)
+  
+  # Determine measurement column
+  measurement_col <- setdiff(names(df), "Genotype")
+  
+  # Special case: Biofilm
+  if (sheet == "Biofilm") {
+    measurement_col <- "mass"
+  } else {
+    # Remove non-measurement columns if present
+    measurement_col <- measurement_col[
+      !measurement_col %in% c("After", "Before", "SD")
+    ][1]
+  }
+  
+  # Keep only relevant columns and remove missing values
+  df <- df %>%
+    select(Genotype, value = all_of(measurement_col)) %>%
+    filter(!is.na(value)) %>%
+    mutate(Genotype = factor(Genotype))
+  
+  # Sample sizes
+  n_by_genotype <- table(df$Genotype)
+  
+  # Levene's test
+  levene_result <- leveneTest(value ~ Genotype, data = df, center = median)
+  
+  p_value <- levene_result$`Pr(>F)`[1]
+  
+  # Return summary
+  tibble(
+    Phenotype = sheet,
+    Measurement = measurement_col,
+    Levene_p = p_value,
+    Variance = ifelse(
+      p_value < 0.05,
+      "Heteroscedastic",
+      "Homoscedastic"
+    ),
+    Min_n = min(n_by_genotype),
+    Max_n = max(n_by_genotype),
+    Unequal_n = length(unique(n_by_genotype)) > 1
+  )
+}
+
+# Run for every phenotype
+variance_summary <- map_dfr(sheet_names, check_variance)
+
+# View results
+variance_summary
+```
+
+```{r}
+write.csv(variance_summary, file = "phenotype_variance_summary.csv")
+```
