@@ -13,8 +13,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo1_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
-tlo1_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
+tlo1_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
+tlo1_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -35,8 +35,8 @@ write.csv(DEGs, file = "tlo1_shrink_filtered_geneIDs.csv")
 
 
 # Load the files (update file paths if needed)
-tlo1_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
-tlo1_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
+tlo1_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo1")
+tlo1_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo1_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo1_shrink_filtered$diff_expression <- with(tlo1_shrink_filtered, 
@@ -171,8 +171,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo3_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
-tlo3_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
+tlo3_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
+tlo3_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -195,8 +195,8 @@ write.csv(DEGs, file = "tlo3_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo3_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
-tlo3_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
+tlo3_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo3")
+tlo3_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo3_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo3_shrink_filtered$diff_expression <- with(tlo3_shrink_filtered, 
@@ -323,8 +323,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo34_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
-tlo34_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
+tlo34_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
+tlo34_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -347,8 +347,8 @@ write.csv(DEGs, file = "tlo34_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo34_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
-tlo34_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
+tlo34_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34")
+tlo34_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo34_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo34_shrink_filtered$diff_expression <- with(tlo34_shrink_filtered, 
@@ -477,8 +477,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo9_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
-tlo9_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
+tlo9_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
+tlo9_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -500,8 +500,8 @@ write.csv(DEGs, file = "tlo9_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo9_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
-tlo9_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
+tlo9_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9")
+tlo9_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo9_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo9_shrink_filtered$diff_expression <- with(tlo9_shrink_filtered, 
@@ -629,8 +629,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
-tlo10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
+tlo10_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
+tlo10_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -653,8 +653,8 @@ write.csv(DEGs, file = "tlo10_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
-tlo10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
+tlo10_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo10")
+tlo10_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo10_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo10_shrink_filtered$diff_expression <- with(tlo10_shrink_filtered, 
@@ -781,8 +781,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo12_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
-tlo12_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
+tlo12_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
+tlo12_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -805,8 +805,8 @@ write.csv(DEGs, file = "tlo12_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo12_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
-tlo12_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
+tlo12_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo12")
+tlo12_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo12_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo12_shrink_filtered$diff_expression <- with(tlo12_shrink_filtered, 
@@ -934,8 +934,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
-tlo2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
+tlo2_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
+tlo2_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -958,8 +958,8 @@ write.csv(DEGs, file = "tlo2_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
-tlo2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
+tlo2_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo2")
+tlo2_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo2_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo2_shrink_filtered$diff_expression <- with(tlo2_shrink_filtered, 
@@ -1087,8 +1087,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo4_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
-tlo4_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
+tlo4_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
+tlo4_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1111,8 +1111,8 @@ write.csv(DEGs, file = "tlo4_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo4_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
-tlo4_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
+tlo4_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo4")
+tlo4_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo4_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo4_shrink_filtered$diff_expression <- with(tlo4_shrink_filtered, 
@@ -1243,8 +1243,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo5_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
-tlo5_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
+tlo5_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
+tlo5_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1267,8 +1267,8 @@ write.csv(DEGs, file = "tlo5_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo5_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
-tlo5_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
+tlo5_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo5")
+tlo5_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo5_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo5_shrink_filtered$diff_expression <- with(tlo5_shrink_filtered, 
@@ -1396,8 +1396,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo7_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
-tlo7_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
+tlo7_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
+tlo7_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1420,8 +1420,8 @@ write.csv(DEGs, file = "tlo7_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo7_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
-tlo7_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
+tlo7_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo7")
+tlo7_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo7_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo7_shrink_filtered$diff_expression <- with(tlo7_shrink_filtered, 
@@ -1550,8 +1550,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo8_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
-tlo8_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
+tlo8_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
+tlo8_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1574,8 +1574,8 @@ write.csv(DEGs, file = "tlo8_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo8_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
-tlo8_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
+tlo8_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo8")
+tlo8_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo8_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo8_shrink_filtered$diff_expression <- with(tlo8_shrink_filtered, 
@@ -1703,8 +1703,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo11_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
-tlo11_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
+tlo11_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
+tlo11_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1727,8 +1727,8 @@ write.csv(DEGs, file = "tlo11_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo11_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
-tlo11_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
+tlo11_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo11")
+tlo11_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo11_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo11_shrink_filtered$diff_expression <- with(tlo11_shrink_filtered, 
@@ -1858,8 +1858,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo13_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
-tlo13_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
+tlo13_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
+tlo13_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -1882,8 +1882,8 @@ write.csv(DEGs, file = "tlo13_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo13_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
-tlo13_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
+tlo13_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo13")
+tlo13_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo13_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo13_shrink_filtered$diff_expression <- with(tlo13_shrink_filtered, 
@@ -2011,8 +2011,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo16_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
-tlo16_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
+tlo16_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
+tlo16_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -2035,8 +2035,8 @@ write.csv(DEGs, file = "tlo16_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo16_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
-tlo16_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
+tlo16_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo16")
+tlo16_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo16_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo16_shrink_filtered$diff_expression <- with(tlo16_shrink_filtered, 
@@ -2166,8 +2166,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo34.2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
-tlo34.2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
+tlo34.2_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
+tlo34.2_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -2190,8 +2190,8 @@ write.csv(DEGs, file = "tlo34.tlo2_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo34.2_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
-tlo34.2_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
+tlo34.2_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo34.tlo2")
+tlo34.2_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo34.tlo2_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo34.2_shrink_filtered$diff_expression <- with(tlo34.2_shrink_filtered, 
@@ -2321,8 +2321,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-tlo9.10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
-tlo9.10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
+tlo9.10_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
+tlo9.10_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -2345,8 +2345,8 @@ write.csv(DEGs, file = "tlo9.tlo10_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-tlo9.10_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
-tlo9.10_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
+tlo9.10_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "tlo9.tlo10")
+tlo9.10_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/tlo9.tlo10_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 tlo9.10_shrink_filtered$diff_expression <- with(tlo9.10_shrink_filtered, 
@@ -2476,8 +2476,8 @@ library(dplyr)
 #Ensure that your shrink_filtered file has the ORF column named as such
 
 # Load your data (update the file path as needed)
-null_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
-null_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
+null_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
+null_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
 
 # Use Josh Wang's github script for Candida albicans to analyze the DEG dataset
 
@@ -2500,8 +2500,8 @@ write.csv(DEGs, file = "null_shrink_filtered_geneIDs.csv")
 
 ```{r}
 # Load the files (update file paths if needed)
-null_DEGs <- read_xlsx("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
-null_shrink_filtered <- read.csv("C:/Users/simonton/OneDrive - UW-Madison/Research/RNAseq/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
+null_DEGs <- read_xlsx("path_to_data/tlo_DEGs_comb_DESeq2_align2.xlsx", sheet = "null")
+null_shrink_filtered <- read.csv("path_to_data/tlo_misc_DESeq2_files/null_shrink_filtered.csv")
 
 # Create a new column to classify genes based on significance and fold change
 null_shrink_filtered$diff_expression <- with(null_shrink_filtered, 
