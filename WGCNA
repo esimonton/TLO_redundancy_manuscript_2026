@@ -1,3 +1,6 @@
+# Scripts sourced from Datacamp and Bioinformagician tutorial on YouTube (https://www.youtube.com/watch?v=gYE59uEMXT4)
+
+
 ```{r}
 # Call necessary libraries/install necessary packages
 library(WGCNA)
