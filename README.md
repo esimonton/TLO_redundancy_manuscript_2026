@@ -1,6 +1,11 @@
 # TLO_redundancy_manuscript_2026
 R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albicans TLO gene family form interconnected functional networks with incomplete redundancy" doi: https://doi.org/10.64898/2026.06.29.735307
 
+# Stats calculations are in the following files:
+      Tamhane-Dunnet's 
+      epistasis_calculation
+      linear_model_stats
+
 # Base R script for constructing the main figure panels can be found in the following files:
 # Fig1 
       C -> growth_data_combined_figures
