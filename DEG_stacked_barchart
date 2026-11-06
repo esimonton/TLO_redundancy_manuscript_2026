@@ -1,0 +1,159 @@
+```{r}
+#Make a unique vs. shared DEGs figure with just single tlos
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Sample data (replace with your actual data)
+mutant_data <- data.frame(
+  Genotype = c("tlo1∆/∆", "tlo3∆/∆", "tlo34∆/∆", "tlo9∆", "tlo10∆", "tlo12∆/∆", "tlo2∆/∆", "tlo4∆/∆", "tlo5∆/∆",
+  "tlo7∆/∆", "tlo8∆/∆", "tlo11∆/∆", "tlo13∆/∆", "tlo16∆/∆"),
+   Total = c(66, 63, 26, 244, 88, 329, 31, 38, 15, 26, 44, 29, 182, 14), # Number of unique DGs for each genotype (i.e. DEGs that only show up for a given genotype)
+  Unique = c(16, 23, 2, 10, 13, 128, 6, 0, 1, 6, 1, 6, 8, 0) # Number of shared DEGs for each geneotype (i.e. DEGs that are not unique and show up in two or more genotypes)
+)
+
+# Your preferred order of TLO mutants
+mutant_order <- c("tlo1∆/∆", "tlo3∆/∆", "tlo34∆/∆", "tlo9∆", "tlo10∆", "tlo12∆/∆", "tlo2∆/∆", "tlo4∆/∆", "tlo5∆/∆",
+  "tlo7∆/∆", "tlo8∆/∆", "tlo11∆/∆", "tlo13∆/∆", "tlo16∆/∆")
+
+# Convert 'Genotype' to a factor with the specified order
+mutant_data$Genotype <- factor(mutant_data$Genotype, levels = mutant_order)
+
+# Calculate shared DEGs
+mutant_data <- mutant_data %>%
+  mutate(Shared = Total - Unique) %>%
+  pivot_longer(cols = c("Unique", "Shared"), names_to = "DEG_Type", values_to = "Count")
+
+# Define colors for each Genotype
+genotype_colors <-  c("tlo1∆/∆" = "cyan",
+  "tlo3∆/∆" = "cyan2",
+  "tlo34∆/∆" = "cyan3",
+  "tlo9∆" = "cyan4",
+  "tlo10∆" = "deepskyblue",
+  "tlo12∆/∆" = "dodgerblue",
+  "tlo2∆/∆" = "yellow",
+  "tlo4∆/∆" = "magenta",
+  "tlo5∆/∆" = "magenta1",
+  "tlo7∆/∆" = "magenta2",
+  "tlo8∆/∆" = "magenta3",
+  "tlo11∆/∆" = "magenta4",
+  "tlo13∆/∆" = "darkorchid",
+  "tlo16∆/∆" = "orchid")
+
+# Create the stacked bar chart with a colored bar below each x-axis label
+stacked_barplot <- ggplot(mutant_data, aes(x = Genotype, y = Count, fill = DEG_Type)) +
+  # Plot the stacked bars
+  geom_bar(stat = "identity", position = "stack") +
+  
+  # Add colored tiles below each x-axis label
+  geom_tile(aes(x = Genotype, y = -20), height = 10, width = 0.9, fill = genotype_colors[mutant_data$Genotype], show.legend = FALSE) +
+  
+  # Add labels and aesthetics
+  labs(
+    title = bquote("Differentially Expressed Genes by single" ~ italic("TLO") ~ "Mutant"),
+    x = "Genotype",
+    y = "Number of DEGs",
+    fill = "DEG Type"
+  ) +
+  # Manually assign colors to the stacked bars
+  scale_fill_manual(values = c("Unique" = "gold", "Shared" = "steelblue")) +
+  
+  # Customize theme
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1, size = 20, face = "italic"  # Italicize x-axis labels
+    ),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 22),
+    axis.title.y = element_text(size = 22),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 25),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 18)
+  ) +
+  
+  # Adjust y-axis to show colored bars
+  scale_y_continuous(limits = c(-25, 400), expand = c(0, 0))
+
+# Print the plot
+print(stacked_barplot)
+
+# Save the plot with ggsave
+ggsave("single_tlo_stacked_barplot.png", plot = stacked_barplot, width = 12, height = 8, units = "in", dpi = 300)
+```
+
+
+```{r}
+# Next, take each single tlo and double mutant combo and assess for unique DEGs
+# Strategy used in Fig 7H
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Sample data (replace with your actual data)
+mutant_data <- data.frame(
+  Genotype = c("tlo34∆/∆", "tlo9∆", "tlo10∆", "tlo2∆/∆", "space", "tlo34∆/∆ tlo2∆/∆", "tlo9∆/tlo10∆"),
+  Total = c(26, 244, 88, 31, 0, 14, 360),
+  Unique = c(6 , 16, 25, 13, 0,  0, 196)
+)
+
+# Your preferred order of TLO mutants
+mutant_order <- c("tlo34∆/∆", "tlo2∆/∆", "tlo34∆/∆ tlo2∆/∆", "space", 
+                  "tlo9∆", "tlo10∆", "tlo9∆/tlo10∆")
+
+# Convert 'Genotype' to a factor with the specified order
+mutant_data$Genotype <- factor(mutant_data$Genotype, levels = mutant_order)
+
+# Calculate shared DEGs
+mutant_data <- mutant_data %>%
+  mutate(Shared = Total - Unique) %>%
+  pivot_longer(cols = c("Unique", "Shared"), names_to = "DEG_Type", values_to = "Count")
+
+# Define colors for each Genotype
+genotype_colors <-  c("tlo34∆/∆"="cyan3", "tlo2∆/∆"="yellow", "tlo34∆/∆ tlo2∆/∆"="green3", "space"="white", "tlo9∆"="cyan4", "tlo10∆"= "deepskyblue", "tlo9∆/tlo10∆"= "darkblue")
+
+# Create the stacked bar chart with a colored bar below each x-axis label
+stacked_barplot <- ggplot(mutant_data, aes(x = Genotype, y = Count, fill = DEG_Type)) +
+  # Plot the stacked bars
+  geom_bar(stat = "identity", position = "stack") +
+  
+  # Add colored tiles below each x-axis label
+  geom_tile(aes(x = Genotype, y = -20), height = 10, width = 0.9, fill = genotype_colors[mutant_data$Genotype], show.legend = FALSE) +
+  
+  # Add labels and aesthetics
+  labs(
+    title = bquote("Differentially Expressed Genes in double" ~ italic("TLO") ~ "Mutants"),
+    x = "Genotype",
+    y = "Number of DEGs",
+    fill = "DEG Type"
+  ) +
+  # Manually assign colors to the stacked bars
+  scale_fill_manual(values = c("Unique" = "gold", "Shared" = "steelblue")) +
+  
+  # Customize theme
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1, size = 28, face = "italic"  # Italicize x-axis labels
+    ),
+    axis.text.y = element_text(size = 28),
+    axis.title.x = element_text(size = 28),
+    axis.title.y = element_text(size = 32),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 32),
+    legend.text = element_text(size = 28),
+    legend.title = element_text(size = 28)
+  ) +
+  
+  # Adjust y-axis to show colored bars
+  scale_y_continuous(limits = c(-25, 400), expand = c(0, 0))
+
+# Print the plot
+print(stacked_barplot)
+
+# Save the plot with ggsave
+ggsave("doubleKO_tlo_stacked_barplot.png", plot = stacked_barplot, width = 12, height = 8, units = "in", dpi = 300)
+```
