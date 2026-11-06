@@ -1,0 +1,116 @@
+#Code adapted from https://rviews.rstudio.com/2017/09/25/survival-analysis-with-r/
+# https://www.datacamp.com/tutorial/survival-analysis-R
+```{r}
+#Download required libraries/dependencies
+library(survival)
+library(survminer)
+```
+```{r}
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+#Do post-hoc log-rank test for all samples first
+pairwise_comp_all <- pairwise_survdiff(Surv(Days, Status) ~ Genotype, data = in_df$TLO_comb, p.adjust.method = "BH")
+
+pairwise_comp_all
+
+
+# Extract p-values comparing each mutant to WT
+p_values_vs_wt <- pairwise_comp_all$p.value["WT", , drop = FALSE]
+# Filter only significant ones (e.g., p < 0.05)
+sig_p_all <- p_values_vs_wt[!is.na(p_values_vs_wt) & p_values_vs_wt < 0.05]
+sig_p_all
+```
+
+```{r}
+#Save output
+# Load required libraries
+library(survival)
+library(dplyr)
+library(tidyr)
+
+# Run the pairwise log-rank test
+pairwise_comp_all <- pairwise_survdiff(
+  Surv(Days, Status) ~ Genotype,
+  data = in_df$TLO_comb,
+  p.adjust.method = "BH"
+)
+
+# Extract the pairwise p-values matrix
+pval_matrix <- pairwise_comp_all$p.value
+
+# Convert to tidy long-format data frame
+pairwise_df <- as.data.frame(as.table(pval_matrix)) %>%
+  rename(Genotype1 = Var1, Genotype2 = Var2, p_value = Freq) %>%
+  filter(!is.na(p_value))
+
+# View results
+print(pairwise_df)
+
+# Save to CSV
+write.csv(pairwise_df, "pairwise_logrank_results.csv", row.names = FALSE)
+
+```
+
+```{r}
+#Post hoc via pairwise log-rank comparisons followed by correction
+
+pairwise_comp_single <- pairwise_survdiff(Surv(Days, Status) ~ Genotype, data = in_df$TLO_sub, p.adjust.method = "BH")
+
+pairwise_comp_single
+
+
+# Extract p-values comparing each mutant to WT
+p_values_vs_wt <- pairwise_comp_single$p.value["WT", , drop = FALSE]
+# Filter only significant ones (e.g., p < 0.05)
+sig_p_single <- p_values_vs_wt[!is.na(p_values_vs_wt) & p_values_vs_wt < 0.05]
+sig_p_single
+```
+
+```{r}
+# Plot your data
+#Create Kaplan-Meier curves for the TLO mutant strains (first on just the single mutants)
+
+color_list = c("PBS"="darkgreen", "WT"="gray1", "tlo∆/∆"="gray", "tlo3∆/∆"="cyan2", "tlo34∆/∆"="cyan3", "tlo2∆/∆"="yellow", "tlo7∆/∆"="magenta2")
+
+strain_list = c('PBS', 'WT', 'tlo∆/∆', 'tlo3∆/∆', 'tlo34∆/∆', 'tlo2∆/∆', 'tlo7∆/∆')
+
+in_df$TLO_sub$Genotype <- factor(in_df$TLO_sub$Genotype,
+                                 levels = names(color_list))
+
+#Fitting the survival curves
+L_km_fit <- survfit(Surv(Days, Status) ~ Genotype, data = in_df$TLO_sub)
+
+#summary(L_km_fit)
+
+L_km_plot <- ggsurvplot(L_km_fit, data = in_df$TLO_sub, 
+                        palette = color_list,
+                        legend.title = element_blank(),
+                        legend = "right", legend.labs = legend_labels,
+                        xlim = c(0, 7),  # Ensure full range is shown
+                        break.time.by = 1,  # Show every integer day
+                        ggtheme = theme_minimal(base_size = 28)+
+                            theme(panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+                            panel.grid.minor.x = element_blank()),
+                        title = "Galleria mellonella infection with TLO mutants",
+                        xlab = "Days post-infection",
+                        ylab = "Fractional survival"
+                        )
+L_km_plot
+
+# Save the Kaplan-Meier plot as a TIFF file with specific dimensions
+ggsave("KM_curves.tiff", plot = L_km_plot$plot, device = 'tiff', dpi = 600, width = 10, height = 6)
+
+
+```
