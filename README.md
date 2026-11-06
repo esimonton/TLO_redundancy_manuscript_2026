@@ -5,8 +5,8 @@ R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albi
 # Fig1 C -> growth_data_combined_figures
 # Fig2 B -> growth_data_combined_figures
 # Fig3 B -> liq_fila_stacked_barchart
-#      D -> growth_analysis+figures
-#      F -> biofilm_mass_barchart
+      D -> growth_analysis+figures
+      F -> biofilm_mass_barchart
 # Fig4 B -> growth_analysis+figures
 #      C -> surv_KM_curve
 #      D -> surv_AUC_barchart
