@@ -5,6 +5,7 @@ R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albi
       Tamhane-Dunnett's 
       epistasis_calculation
       linear_model_stats
+      determine_data_variance
 
 # Base R script for constructing the main figure panels can be found in the following files:
 # Fig1 
