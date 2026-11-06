@@ -1,0 +1,340 @@
+```{r}
+# Load required libraries
+library(ggplot2)
+library(ggrepel)
+library(readxl)
+library(dplyr)
+# Load count matrix
+# Rows are genes, columns are samples
+count_data <- read.csv("path_to_RNAseq_count_data.csv", row.names=1)
+
+# Correct sample names (replace '-' with '.')
+colnames(count_data) <- gsub("-", ".", colnames(count_data))
+
+
+# Sample names
+samples <- c("WT-2", "WT-4", "WT-5", "WT-6",
+             "null-1", "null-2", "null-3", "null-4",
+             "tlo34-1", "tlo34-2", "tlo34-3", "tlo34-4",
+             "tlo2-1", "tlo2-2", "tlo2-3", "tlo2-4",
+             "tlo3-1", "tlo3-2", "tlo3-3", "tlo3-4",
+             "tlo16-1", "tlo16-2", "tlo16-3", "tlo16-4",
+             "tlo1-1", "tlo1-2", "tlo1-3", "tlo1-4",
+             "tlo4-1", "tlo4-2", "tlo4-3", "tlo4-4",
+             "tlo11-1", "tlo11-2", "tlo11-3", "tlo11-4",
+             
+             "tlo5-1", "tlo5-2", "tlo5-3", "tlo5-4",
+             "tlo7-1", "tlo7-2", "tlo7-3", "tlo7-4",
+             "tlo8-1", "tlo8-2", "tlo8-3", "tlo8-4",
+             "tlo10-1", "tlo10-2", "tlo10-3", "tlo10-4",
+             "tlo12-1", "tlo12-2", "tlo12-3", "tlo12-4",
+             "tlo13-1", "tlo13-2", "tlo13-3", "tlo13-4",
+             "tlo9-1", "tlo9-2", "tlo9-3", "tlo9-4"
+             )
+
+# Define metadata with sample names and genotype
+metadata <- data.frame(
+  sample = gsub("-", ".", samples),  # Ensure samples match count data
+  genotype = factor(c(rep("WT", 4),
+                      rep("null", 4),
+                      rep("tlo34", 4),
+                      rep("tlo2", 4),
+                      rep("tlo3", 4),
+                      rep("tlo16", 4),
+                      rep("tlo1", 4),
+                      rep("tlo4", 4),
+                      rep("tlo11", 4),
+                      rep("tlo5", 4),
+                      rep("tlo7", 4),
+                      rep("tlo8", 4),
+                      rep("tlo10", 4),
+                      rep("tlo12", 4),
+                      rep("tlo13", 4),
+                      rep("tlo9", 4)
+                      ))
+)
+
+
+```
+
+```{r}
+# Load DESeq2
+library(DESeq2)
+
+# Create DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = count_data, colData = metadata, design = ~ genotype)
+
+# Estimate size factors for normalization
+dds <- estimateSizeFactors(dds)
+
+```
+
+
+```{r}
+# Apply VST transformation
+vsd <- vst(dds, blind=TRUE)  # blind=TRUE to ignore design formula
+
+# Extract normalized, transformed data
+mat <- assay(vsd)
+
+```
+
+
+```{r}
+# Extract normalized expression matrix
+vst_counts <- assay(vsd)
+
+# Calculate mean expression for each genotype
+library(dplyr)
+
+# Add genotype info to the counts
+vst_data <- as.data.frame(vst_counts)
+vst_data$gene <- rownames(vst_data)
+vst_data_long <- tidyr::gather(vst_data, key="sample", value="expression", -gene)
+
+# Merge with metadata to associate samples with genotypes
+vst_data_long <- merge(vst_data_long, metadata, by.x="sample", by.y="sample")
+
+# Calculate mean expression for each gene and genotype
+mean_expression <- vst_data_long %>%
+  group_by(gene, genotype) %>%
+  summarize(mean_expression = mean(expression))
+
+# Pivot back to wide format (genotypes as columns, genes as rows)
+mean_expression_wide <- tidyr::spread(mean_expression, key=genotype, value=mean_expression)
+
+
+write.csv(mean_expression_wide, file = "global_heatmap_mean_expression_YPD30.csv")
+```
+
+
+```{r}
+# Subtract WT mean expression from all other genotypes
+wt_means <- mean_expression_wide$WT
+
+# Center data by subtracting WT expression from each column
+mean_expression_centered <- mean_expression_wide
+mean_expression_centered[-1] <- sweep(mean_expression_wide[-1], 1, wt_means)
+
+
+write.csv(mean_expression_centered, file = "global_heatmap_relative_expression_YPD30.csv")
+```
+
+
+
+
+```{r}
+library(pheatmap)
+
+# Clip the heatmap data to the range -2 to 2
+heatmap_data <- as.matrix(mean_expression_centered[-1])
+rownames(heatmap_data) <- mean_expression_centered$gene
+heatmap_data[heatmap_data > 2] <- 2
+heatmap_data[heatmap_data < -2] <- -2
+
+# Define a vibrant color palette
+bright_colors <- colorRampPalette(c("blue", "skyblue", "white", "pink", "red"))(100)
+
+# Create heatmap with specified sample order
+sample_order <- c("WT", "tlo12", "tlo13", "tlo9",
+                  "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                  "tlo11", "tlo16", "tlo5", "tlo7", "null")
+
+# Custom labels for the x-axis
+custom_labels <- c("WT", "tlo12", "tlo13", "tlo9",
+                  "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                  "tlo11", "tlo16", "tlo5", "tlo7", "null")
+
+# Ensure columns are ordered correctly
+col_order <- match(sample_order, colnames(heatmap_data))
+
+# Plot heatmap
+heatmap_bright_cluster <- pheatmap(heatmap_data[, col_order], 
+         cluster_rows = TRUE,  
+         cluster_cols = FALSE,
+         angle_col = 45,
+         labels_col = custom_labels,
+         scale = "none",   
+         color = bright_colors,  
+         show_rownames = FALSE,  
+         main = "Gene Expression in YPD30",
+         fontsize_col = 14,      
+         fontface_col = "italic" 
+)
+
+# Save the heatmap object as a PNG file
+png("heatmap_bright_cluster_no_dKOs.png", width = 800, height = 600, dpi = 300)
+heatmap_bright_cluster
+dev.off()  # Close the graphics device to save the file
+```
+
+```{r}
+#Re-generate the heatmap with genotype color labels across the x-axis
+library(pheatmap)
+library(grid)
+
+# Clip the heatmap data to the range -2 to 2
+heatmap_data <- as.matrix(mean_expression_centered[-1])
+rownames(heatmap_data) <- mean_expression_centered$gene
+heatmap_data[heatmap_data > 2] <- 2
+heatmap_data[heatmap_data < -2] <- -2
+
+# Define a vibrant color palette
+bright_colors <- colorRampPalette(c("blue", "skyblue", "white", "pink", "red"))(100)
+
+# Define genotype order
+sample_order <- c("WT", "tlo12", "tlo9.tlo10", "tlo13", "tlo9",
+                  "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                  "tlo11", "tlo34.tlo2", "tlo16", "tlo5", "tlo7", "tlonull")
+
+# Custom labels for the x-axis (renaming certain genotypes)
+custom_labels <- c("WT", "tlo12", "tlo9/tlo10", "tlo13", "tlo9",
+                   "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                   "tlo11", "tlo34/tlo2", "tlo16", "tlo5", "tlo7", "tlo-null")
+
+# Ensure columns are ordered correctly
+col_order <- match(sample_order, colnames(heatmap_data))
+
+# Define genotype colors (matching exact sample_order)
+genotype_colors <- c(
+    "WT" = "gray1", "tlo12" = "dodgerblue", "tlo9.tlo10" = "darkblue", "tlo13" = "darkorchid", "tlo9" = "cyan4",
+    "tlo3" = "cyan2", "tlo2" = "yellow", "tlo34" = "cyan3", "tlo1" = "cyan", "tlo4" = "magenta", 
+    "tlo10" = "deepskyblue", "tlo8" = "magenta3", "tlo11" = "magenta4", 
+    "tlo34.tlo2" = "green3", "tlo16" = "orchid", "tlo5" = "magenta1", "tlo7" = "magenta2", "tlonull" = "gray"
+)
+
+# Create annotation dataframe for column colors
+annotation_col <- data.frame(Genotype = sample_order)  # Must match sample_order exactly
+rownames(annotation_col) <- sample_order
+
+# Assign colors to annotation (keys MUST match exactly)
+annotation_colors <- list(Genotype = genotype_colors)
+
+# Open PNG device
+png("heatmap_with_upper_bar.png", width = 900, height = 700)
+
+# Generate heatmap with color bar BELOW the heatmap (above x-axis)
+heatmap_colorbar <- pheatmap(heatmap_data[, col_order], 
+         cluster_rows = TRUE,  
+         cluster_cols = FALSE,
+         angle_col = 45,
+         labels_col = custom_labels,
+         annotation_col = annotation_col,  # Add color bar
+         annotation_colors = annotation_colors,  # Assign colors to bar
+         annotation_legend = FALSE,  # Remove legend
+         annotation_names_col = FALSE,  # Hide annotation label
+         gaps_col = ncol(heatmap_data),  # Push annotation down
+         scale = "none",   
+         color = bright_colors,  
+         show_rownames = FALSE,  
+         main = "Gene Expression in YPD30",
+         fontsize_col = 14,      
+         fontface_col = "italic"
+)
+
+# Close PNG device
+dev.off()
+heatmap_colorbar
+```
+
+------------------------------------------
+
+#Next, build a heatmap for a subset of strains for Fig 7I
+
+```{r}
+#Construct a heatmap of the DEGs of a34 and b2 dKO with LFC direction as the scoring method
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(pheatmap)
+
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+#Using the combined DEG file "dKO_LFC_comparison.xlsx" where each Sheet is the tlo genotype name the script pulls
+
+
+
+# Convert list of dataframes into a single dataframe
+combined_df <- bind_rows(in_df, .id = "Genotype")
+
+# Check the structure of combined_df to confirm column names
+str(combined_df)
+
+```
+
+
+
+```{r}
+# Select only Gene and relevant LFC values explicitly using dplyr::select()
+
+library(dplyr)
+library(tidyr)
+library(pheatmap)
+
+# Prepare LFC data
+lfc_data <- combined_df %>%
+  filter(Genotype %in% c("tlo34", "tlo2", "tlo34.tlo2")) %>%
+  dplyr::select(Gene, Genotype, log2FoldChange) %>%
+  pivot_wider(names_from = Genotype, values_from = log2FoldChange)
+
+lfc_data <- lfc_data %>% filter(rowSums(is.na(.[-1])) < ncol(.[-1]))
+
+# Convert to matrix
+lfc_matrix <- as.matrix(lfc_data[, -1])
+rownames(lfc_matrix) <- lfc_data$Gene
+lfc_matrix[is.na(lfc_matrix) | is.nan(lfc_matrix) | is.infinite(lfc_matrix)] <- 0
+
+# Rename columns
+colnames(lfc_matrix)[colnames(lfc_matrix) == "tlo34.tlo2"] <- "tlo34∆/∆ tlo2∆/∆"
+colnames(lfc_matrix)[colnames(lfc_matrix) == "tlo34"] <- "tlo34∆/∆"
+colnames(lfc_matrix)[colnames(lfc_matrix) == "tlo2"] <- "tlo2∆/∆"
+
+# Reorder columns manually
+lfc_matrix <- lfc_matrix[, c( "tlo34∆/∆", "tlo2∆/∆", "tlo34∆/∆ tlo2∆/∆")]
+
+# Optional: italicize gene names (rows)
+rownames(lfc_matrix) <- paste0("italic('", rownames(lfc_matrix), "')")
+
+# Define x-axis (column) labels as expressions
+col_labels <- parse(text = c("italic('tlo34∆/∆')",
+                             "italic('tlo2∆/∆')",
+                             "italic('tlo34∆/∆ tlo2∆/∆')"))
+
+# Save heatmap
+png("heatmap_LFC_comparison_tlo34_tlo2dKO_delta.png", width = 13, height = 14, units = "in", res = 600)
+
+
+pheatmap(lfc_matrix, 
+         cluster_rows = TRUE,  
+         cluster_cols = FALSE,  # maintain specified column order
+         color = colorRampPalette(c("blue", "skyblue", "white", "pink", "red"))(100),  
+         scale = "none",
+         main = expression("LFC Comparison of" ~ italic("tlo34, tlo2") ~ " and " ~ italic("tlo34/tlo2") ~ "Differentially Expressed Genes"),
+         fontsize = 20,
+         angle_col = 45,
+         na_col = "gray70",
+         breaks = seq(-5, 5, length.out = 101),
+         labels_col = col_labels,  # italic x-axis labels
+         labels_row = parse(text = rownames(lfc_matrix)))  # italic y-axis labels
+
+dev.off()
+
+```
+```{r}
+# Save LFC data
+
+write.csv(lfc_data, file = "dKO_LFC_comp_data.csv")
+```
