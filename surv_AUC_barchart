@@ -1,0 +1,360 @@
+```{r}
+# Contruct an area under the curve (AUC) as a barchart to better show all the genotypes equally; daily survival counts per genotype is the summary statistic we will be using
+
+library(survival)
+library(dplyr)
+
+# Use your data
+df <- in_df$TLO_comb
+
+library(dplyr)
+
+# Define the maximum day to consider (e.g., 7)
+max_day <- 7
+
+# For each genotype, calculate AUC as sum over days of (survivors * day)
+auc_df <- df %>%
+  group_by(Genotype) %>%
+  do({
+    genotype_df <- .
+    
+    # For days 1 to max_day, count larvae alive (Days >= day)
+    daily_survivors <- sapply(1:max_day, function(day) {
+      sum(genotype_df$Days >= day)
+    })
+    
+    # Calculate AUC as sum(day * survivors)
+    auc <- sum(daily_survivors * 1:max_day)
+    
+    data.frame(AUC = auc)
+  }) %>%
+  ungroup()
+
+print(auc_df)
+
+```
+
+```{r}
+#Recalculate AUC based on pooled data since there is a fair amount of statistical noise
+
+max_day <- 7
+
+auc_summary <- df %>%
+  group_by(Genotype) %>%
+  summarise(
+    AUC = sum(sapply(1:max_day, function(day) sum(Days >= day))),
+    .groups = "drop"
+  )
+
+```
+
+```{r}
+#Plot barchart
+#install.packages("ggtext")  # if not installed
+library(ggtext)
+
+labels <- levels(auc_summary$Genotype)
+
+label_map <- setNames(
+  ifelse(labels %in% c("WT", "PBS"), labels, paste0("<i>", labels, "</i>")),
+  labels
+)
+
+
+auc_summary$Genotype <- gsub("\\.", "/", auc_summary$Genotype)
+auc_summary$Genotype <- factor(auc_summary$Genotype, levels = names(genotype_colors))
+
+# #Use the following to have actual order based on auc
+# auc_summary <- auc_summary %>%
+#   arrange(desc(AUC)) %>%
+#   mutate(Genotype = factor(Genotype, levels = Genotype))
+
+
+auc_plot <- ggplot(auc_summary, aes(x = Genotype, y = AUC, fill = Genotype)) +
+  geom_bar(stat = "identity", color = "black", width = 0.8) +
+  scale_fill_manual(values = genotype_colors) +
+  scale_x_discrete(labels=label_map) +
+  labs(y = "Total AUC (Larvae × Days Survived)", x = "Genotype") +
+  theme_minimal(base_size=20) +
+  theme(
+    axis.text.x = element_markdown(angle = 45, hjust = 1, size = 20, face = "italic"),
+    legend.position = "none"
+  )
+
+ggsave(auc_plot, file = "auc_galleria_comb_delta.png", dpi = 300)
+```
+```{r}
+#Single mutants and null
+
+# Contruct a AUC as a barchart to better show all the genotypes equally; daily survival counts per genotype is the summary statistic we will be using
+
+library(survival)
+library(dplyr)
+
+# Use your data
+df <- in_df$TLO_single
+
+library(dplyr)
+
+# Define the maximum day to consider (e.g., 7)
+max_day <- 7
+
+# For each genotype, calculate AUC as sum over days of (survivors * day)
+auc_df <- df %>%
+  group_by(Genotype) %>%
+  do({
+    genotype_df <- .
+    
+    # For days 1 to max_day, count larvae alive (Days >= day)
+    daily_survivors <- sapply(1:max_day, function(day) {
+      sum(genotype_df$Days >= day)
+    })
+    
+    # Calculate AUC as sum(day * survivors)
+    auc <- sum(daily_survivors * 1:max_day)
+    
+    data.frame(AUC = auc)
+  }) %>%
+  ungroup()
+
+print(auc_df)
+
+
+# Define colors for each Genotype
+genotype_colors <-  c("PBS"="green", "WT"="gray1", "tlo1∆/∆"="cyan", "tlo3∆/∆"="cyan2", "tlo34∆/∆"="cyan3", "tlo9∆"="cyan4", "tlo10∆"= "deepskyblue", "tlo12∆/∆"= "dodgerblue", "tlo2∆/∆"="yellow", "tlo4∆/∆"="magenta","tlo5∆/∆"="magenta1","tlo7∆/∆"="magenta2", "tlo8∆/∆"="magenta3", "tlo11∆/∆"="orchid", "tlo13∆/∆"= "darkorchid", "tlo16∆/∆"="magenta4", "tlo∆/∆"="gray")
+
+# genotype_order <- names(genotype_colors)
+# 
+# auc_df$Genotype <- factor(auc_df$Genotype, levels = genotype_order)
+
+#Recalculate AUC based on pooled data since there is a fair amount of statistical noise
+
+max_day <- 7
+
+auc_summary <- df %>%
+  group_by(Genotype) %>%
+  summarise(
+    AUC = sum(sapply(1:max_day, function(day) sum(Days >= day))),
+    .groups = "drop"
+  )
+
+#Plot barchart
+#install.packages("ggtext")  # if not installed
+library(ggtext)
+
+
+
+auc_summary$Genotype <- gsub("\\.", "/", auc_summary$Genotype)
+auc_summary$Genotype <- factor(auc_summary$Genotype, levels = names(genotype_colors))
+
+#Use the following to have actual order based on auc
+auc_summary <- auc_summary %>%
+  arrange(desc(AUC)) %>%
+  mutate(Genotype = factor(Genotype, levels = Genotype))
+
+labels <- levels(auc_summary$Genotype)
+
+label_map <- setNames(
+  ifelse(labels %in% c("WT", "PBS"), labels, paste0("<i>", labels, "</i>")),
+  labels
+)
+
+auc_plot <- ggplot(auc_summary, aes(x = Genotype, y = AUC, fill = Genotype)) +
+  geom_bar(stat = "identity", color = "black", width = 0.8) +
+  scale_fill_manual(values = genotype_colors) +
+  scale_x_discrete(labels=label_map) +
+  labs(y = "Total AUC (Larvae × Days Survived)", x = "Genotype") +
+  theme_minimal(base_size=20) +
+  theme(
+    axis.title.y = element_markdown(size = 25), 
+    axis.text.y = element_markdown(size = 25), 
+    axis.text.x = element_markdown(angle = 45, hjust = 1, size = 25, face = "italic"),
+    legend.position = "none"
+  )
+
+ggsave(auc_plot, file = "auc_galleria_singles_reorder.png", dpi = 300, width = 12, height = 10, units = "in")
+
+```
+
+
+
+```{r}
+#dKOs group 1 
+
+# Contruct a AUC as a barchart to better show all the genotypes equally; daily survival counts per genotype is the summary statistic we will be using
+
+library(survival)
+library(dplyr)
+
+# Use your data
+df <- in_df$TLO_dKO1
+
+library(dplyr)
+
+# Define the maximum day to consider (e.g., 7)
+max_day <- 7
+
+# For each genotype, calculate AUC as sum over days of (survivors * day)
+auc_df <- df %>%
+  group_by(Genotype) %>%
+  do({
+    genotype_df <- .
+    
+    # For days 1 to max_day, count larvae alive (Days >= day)
+    daily_survivors <- sapply(1:max_day, function(day) {
+      sum(genotype_df$Days >= day)
+    })
+    
+    # Calculate AUC as sum(day * survivors)
+    auc <- sum(daily_survivors * 1:max_day)
+    
+    data.frame(AUC = auc)
+  }) %>%
+  ungroup()
+
+print(auc_df)
+
+# Define colors for each Genotype
+genotype_colors <-  c("PBS"="green", "WT"="gray1", "tlo34∆/∆"="cyan3", "tlo2∆/∆"="yellow", "tlo34∆/∆ tlo2∆/∆"="green3")
+
+genotype_order <- names(genotype_colors)
+
+auc_df$Genotype <- factor(auc_df$Genotype, levels = genotype_order)
+
+
+#Recalculate AUC based on pooled data since there is a fair amount of statistical noise
+
+max_day <- 7
+
+auc_summary <- df %>%
+  group_by(Genotype) %>%
+  summarise(
+    AUC = sum(sapply(1:max_day, function(day) sum(Days >= day))),
+    .groups = "drop"
+  )
+#Plot barchart
+#install.packages("ggtext")  # if not installed
+library(ggtext)
+
+
+auc_summary$Genotype <- gsub("\\.", "/", auc_summary$Genotype)
+auc_summary$Genotype <- factor(auc_summary$Genotype, levels = names(genotype_colors))
+
+#Use the following to have actual order based on auc
+auc_summary <- auc_summary %>%
+  arrange(desc(AUC)) %>%
+  mutate(Genotype = factor(Genotype, levels = Genotype))
+
+labels <- levels(auc_summary$Genotype)
+
+label_map <- setNames(
+  ifelse(labels %in% c("WT", "PBS"), labels, paste0("<i>", labels, "</i>")),
+  labels
+)
+
+auc_plot <- ggplot(auc_summary, aes(x = Genotype, y = AUC, fill = Genotype)) +
+  geom_bar(stat = "identity", color = "black", width = 0.8) +
+  scale_fill_manual(values = genotype_colors) +
+  scale_x_discrete(labels=label_map) +
+  labs(y = "Total AUC (Larvae × Days Survived)", x = "Genotype") +
+  theme_minimal(base_size=28) +
+  theme(
+    axis.text.x = element_markdown(
+      angle = 45, hjust = 1, size = 28, face = "italic"),  # Italicize x-axis labels
+    legend.position = "none"
+  )
+
+ggsave(auc_plot, file = "auc_galleria_dKO1_reorder.png", height = 9, width = 9, units = "in", dpi = 300)
+
+```
+
+
+```{r}
+#dKOs group 2 
+
+
+# Contruct a AUC as a barchart to better show all the genotypes equally; daily survival counts per genotype is the summary statistic we will be using
+
+library(survival)
+library(dplyr)
+
+# Use your data
+df <- in_df$TLO_dKO2
+
+library(dplyr)
+
+# Define the maximum day to consider (e.g., 7)
+max_day <- 7
+
+# For each genotype, calculate AUC as sum over days of (survivors * day)
+auc_df <- df %>%
+  group_by(Genotype) %>%
+  do({
+    genotype_df <- .
+    
+    # For days 1 to max_day, count larvae alive (Days >= day)
+    daily_survivors <- sapply(1:max_day, function(day) {
+      sum(genotype_df$Days >= day)
+    })
+    
+    # Calculate AUC as sum(day * survivors)
+    auc <- sum(daily_survivors * 1:max_day)
+    
+    data.frame(AUC = auc)
+  }) %>%
+  ungroup()
+
+print(auc_df)
+
+# Define colors for each Genotype
+genotype_colors <-  c("PBS"="green", "WT"="gray1", "tlo9∆"="cyan4", "tlo10∆"= "deepskyblue", "tlo9∆/tlo10∆"= "darkblue")
+
+genotype_order <- names(genotype_colors)
+
+auc_df$Genotype <- factor(auc_df$Genotype, levels = genotype_order)
+
+#Recalculate AUC based on pooled data since there is a fair amount of statistical noise
+
+max_day <- 7
+
+auc_summary <- df %>%
+  group_by(Genotype) %>%
+  summarise(
+    AUC = sum(sapply(1:max_day, function(day) sum(Days >= day))),
+    .groups = "drop"
+  )
+
+#Plot barchart
+#install.packages("ggtext")  # if not installed
+library(ggtext)
+
+
+auc_summary$Genotype <- gsub("\\.", "/", auc_summary$Genotype)
+auc_summary$Genotype <- factor(auc_summary$Genotype, levels = names(genotype_colors))
+
+#Use the following to have actual order based on auc
+auc_summary <- auc_summary %>%
+  arrange(desc(AUC)) %>%
+  mutate(Genotype = factor(Genotype, levels = Genotype))
+
+labels <- levels(auc_summary$Genotype)
+
+label_map <- setNames(
+  ifelse(labels %in% c("WT", "PBS"), labels, paste0("<i>", labels, "</i>")),
+  labels
+)
+
+auc_plot <- ggplot(auc_summary, aes(x = Genotype, y = AUC, fill = Genotype)) +
+  geom_bar(stat = "identity", color = "black", width = 0.8) +
+  scale_fill_manual(values = genotype_colors) +
+  scale_x_discrete(labels=label_map) +
+  labs(y = "Total AUC (Larvae × Days Survived)", x = "Genotype") +
+  theme_minimal(base_size=28) +
+  theme(
+    axis.text.x = element_markdown(
+      angle = 45, hjust = 1, size = 28, face = "italic"),  # Italicize x-axis labels
+    legend.position = "none"
+  )
+
+ggsave(auc_plot, file = "auc_galleria_dKO2_reorder.png", height = 9, width = 9, units = "in", dpi = 300)
+```
