@@ -1,0 +1,137 @@
+```{r}
+#Load required packages
+
+library(openxlsx)
+library(ggplot2)
+library(ggsignif)
+library(emmeans)
+library(ggpubr)
+library(grid)
+library(cowplot)
+library(scales)
+```
+
+```{r}
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+all_mass_tlo <- in_df$TLO_no_dKO
+
+col_vec <- c("tlo1∆/∆"="cyan", "tlo3∆/∆"="cyan2", "tlo34∆/∆"="cyan3", "tlo9∆"="cyan4", "tlo10∆"= "deepskyblue", "tlo12∆/∆"= "dodgerblue", "tlo2∆/∆"="yellow", "tlo4∆/∆"="magenta","tlo5∆/∆"="magenta1","tlo7∆/∆"="magenta2", "tlo8∆/∆"="magenta3", "tlo11∆/∆"="orchid", "tlo13∆/∆"= "darkorchid", "tlo16∆/∆"="magenta4", "tlo∆/∆"="gray", "WT"="gray1")
+
+
+# Step 1: Summarize the data
+summary_df <- all_mass_tlo %>%
+  group_by(Genotype) %>%
+  summarise(
+    mean_mass = mean(mass, na.rm = TRUE),
+    sd_mass = sd(mass, na.rm = TRUE),
+    n = n(),
+    se_mass = sd_mass / sqrt(n)
+  )
+
+# Step 2: Create bar chart
+biofilm_bar <- ggplot(summary_df, aes(x = factor(Genotype, level = c('WT', 'tlo1∆/∆', 'tlo3∆/∆', 'tlo34∆/∆', 'tlo9∆', 'tlo10∆', 'tlo12∆/∆', 'tlo2∆/∆', 'tlo4∆/∆', 'tlo5∆/∆', 'tlo7∆/∆', 'tlo8∆/∆', 'tlo11∆/∆', 'tlo13∆/∆', 'tlo16∆/∆', 'tlo34∆/∆-tlo2∆/∆', 'tlo9∆/tlo10∆', 'tlo∆/∆')), 
+                              y = mean_mass, fill = Genotype)) +
+  geom_col(width = 0.7, alpha = 0.8, show.legend = FALSE) +
+  geom_errorbar(aes(ymin = mean_mass - se_mass, ymax = mean_mass + se_mass), width = 0.3) +
+  scale_fill_manual(values = col_vec) +
+  scale_y_continuous(limits = c(0, 4)) +
+  labs(x = "Genotype", y = "Biofilm mass (mg)",
+       title = expression("Biofilm formation of "*italic("TLO")*" mutants in Spider medium at 37°C")) +
+  theme_minimal(base_size = 20) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "italic"),
+    axis.title.x = element_text(margin = margin(t = 20)),
+    axis.title.y = element_text(vjust = 2),
+    plot.title = element_text(face = "bold", size = 20),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+#save plot as a PDF in whatever dimensions you want/need
+  #ggsave automatically chooses 7x7 inches as the default dimensions
+ggsave("biofilm_mass_barplot.png", plot = biofilm_bar, width = 10, height = 5, units = "in", dpi = 300)
+```
+
+
+```{r}
+# Merge SD + significance test results
+plot_df <- mean_mass_data %>%
+  left_join(t_test_results, by = "Genotype")
+
+# Reorder genotype factor levels
+genotype_order <- c('WT', 'tlo1∆/∆', 'tlo3∆/∆', 'tlo34∆/∆', 'tlo9∆', 'tlo10∆', 'tlo12∆/∆', 'tlo2∆/∆', 'tlo4∆/∆', 'tlo5∆/∆', 'tlo7∆/∆', 'tlo8∆/∆', 'tlo11∆/∆', 'tlo13∆/∆', 'tlo16∆/∆', 'tlo∆/∆')
+
+plot_df$Genotype <- factor(plot_df$Genotype, levels = genotype_order)
+all_mass_tlo$Genotype <- factor(all_mass_tlo$Genotype, levels = genotype_order)
+
+biofilm_bar <- ggplot() +
+
+  # Mean bars (DRAW FIRST)
+  geom_bar(data = plot_df,
+           aes(x = Genotype, y = Mean_mass.x, fill = Genotype),
+           stat = "identity", width = 0.7) +
+
+  # Error bars (DRAW SECOND)
+  geom_errorbar(data = plot_df,
+                aes(x = Genotype,
+                    ymin = Mean_mass.x - SD,
+                    ymax = Mean_mass.x + SD),
+                width = 0.2) +
+
+  # Raw data points (DRAW AFTER BARS → SO THEY ARE ON TOP)
+  geom_jitter(
+    data = all_mass_tlo,
+    aes(x = Genotype, y = mass, fill = Genotype),
+    width = 0.15, size = 2.5, alpha = 0.9, shape = 21, color = "black"
+) +
+
+  # Significance labels (DRAW LAST)
+  geom_text(data = plot_df %>% filter(significance != "ns"),
+            aes(x = Genotype,
+                y = Mean_mass.x + SD + 0.05,
+                label = significance),
+            size = 12, vjust = -0.5) +
+  
+  scale_fill_manual(values = col_vec) +
+  scale_color_manual(values = col_vec) +
+  scale_y_continuous(limits = c(0, 4)) +
+  
+  labs(
+    title = expression("Biofilm Mass of" ~italic("TLO")~ "Mutants vs WT"),
+    x = "Genotype",
+    y = "Biofilm Mass (mg)"
+  ) +
+  
+  theme_minimal(base_size = 18) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "italic", size = 18),
+    axis.text.y = element_text(size = 18),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 22, face = "bold"),
+    legend.position = "none"
+  )
+
+
+print(biofilm_bar)
+
+#save plot as a PDF in whatever dimensions you want/need
+  #ggsave automatically chooses 7x7 inches as the default dimensions
+ggsave("biofilm_mass_barplot.png", plot = biofilm_bar, width = 10, height = 5, units = "in", dpi = 600)
+```
