@@ -1,0 +1,223 @@
+```{r}
+#Make a figure for the number of up- and down-regulated genes in each tlo mutant
+#Like a dot plot
+
+#Upload DEG excel workbook as deg_data
+#choosing input file
+in_file <- file.choose()
+
+# getting data from sheets
+in_sheets <- openxlsx::getSheetNames(in_file)
+in_df <- lapply(in_sheets, openxlsx::read.xlsx, xlsxFile=in_file)
+  
+# assigning names to data frame
+names(in_df) <- in_sheets
+
+print(names(in_df))
+```
+
+
+```{r}
+# Create the list of LFCs for each genotype
+genotype_list <- list(
+  tlo1 = in_df$tlo1$log2FoldChange,
+  tlo3 = in_df$tlo3$log2FoldChange,
+  tlo34 = in_df$tlo34$log2FoldChange,
+  tlo9 = in_df$tlo9$log2FoldChange,
+  tlo10 = in_df$tlo10$log2FoldChange,
+  tlo12 = in_df$tlo12$log2FoldChange,
+  tlo2 = in_df$tlo2$log2FoldChange,
+  tlo4 = in_df$tlo4$log2FoldChange,
+  tlo5 = in_df$tlo5$log2FoldChange,
+  tlo7 = in_df$tlo7$log2FoldChange,
+  tlo8 = in_df$tlo8$log2FoldChange,
+  tlo11 = in_df$tlo11$log2FoldChange,
+  tlo13 = in_df$tlo13$log2FoldChange,
+  tlo16 = in_df$tlo16$log2FoldChange,
+  #tlo34_tlo2 = in_df$tlo34.tlo2$log2FoldChange,
+  #tlo9_tlo10 = in_df$tlo9.tlo10$log2FoldChange,
+  tlo_null = in_df$null$log2FoldChange
+)
+
+
+# Define a function to categorize genes based on LFC
+categorize_lfc <- function(lfc, threshold = 0) {     #Set to 0 because it includes all the DEGs from the data
+  ifelse(lfc > threshold, "Increased", ifelse(lfc < -threshold, "Decreased", NA))
+}
+
+# Apply the categorization to each genotype in the list
+regulation_summary <- lapply(genotype_list, function(lfc) {
+  table(categorize_lfc(lfc))  # Count occurrences of "Up" and "Down"
+})
+
+# Convert the list of tables to a data frame
+regulation_df <- as.data.frame(do.call(rbind, regulation_summary))
+colnames(regulation_df) <- c("Decreased", "Increased")
+regulation_df$Genotype <- rownames(regulation_df)
+regulation_df <- regulation_df[, c("Genotype", "Increased", "Decreased")]
+
+
+# Define the preferred order for the genotypes
+genotype_order <- c("tlo12", "tlo13", "tlo9",
+                  "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                  "tlo11", "tlo16", "tlo5", "tlo7", "tlo_null")
+
+# Apply the preferred order to the 'Genotype' column
+regulation_long_df$Genotype <- factor(regulation_long_df$Genotype, levels = genotype_order)
+
+# Check current levels in the Genotype column
+levels(regulation_long_df$Genotype)
+```
+
+```{r}
+
+library(tidyr)
+
+# Convert regulation_df to long format
+regulation_long_df <- pivot_longer(
+  regulation_df,
+  cols = c("Increased", "Decreased"),  # Columns to pivot into long format
+  names_to = "variable",   # New column name for "Up"/"Down"
+  values_to = "value"      # New column name for the DEG counts
+)
+
+
+
+#Ensure that the labels match 
+# Ensure the forcats package is loaded
+library(forcats)
+
+# Old names in the data (matching the original levels)
+old_labels <- c("tlo12", "tlo13", "tlo9",
+                  "tlo3", "tlo2", "tlo34", "tlo1", "tlo4", "tlo10", "tlo8", 
+                  "tlo11", "tlo16", "tlo5", "tlo7", "tlo_null")
+
+# New custom labels
+custom_labels <- c("tlo12∆/∆","tlo13∆/∆", "tlo9∆",
+                  "tlo3∆/∆", "tlo2∆/∆", "tlo34∆/∆", "tlo1∆/∆", "tlo4∆/∆", "tlo10∆", "tlo8∆/∆", 
+                  "tlo11∆/∆", "tlo16∆/∆", "tlo5∆/∆", "tlo7∆/∆", "tlo∆/∆")
+
+# Rename factor levels in the Genotype column
+regulation_long_df$Genotype <- factor(
+  regulation_long_df$Genotype,
+  levels = old_labels,  # Original order
+  labels = custom_labels  # New labels
+)
+
+
+#Check the structure
+str(regulation_long_df)
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# Ensure "Upregulation" is above "Downregulation" in the legend
+regulation_long_df$variable <- factor(regulation_long_df$variable, levels = c("Increased", "Decreased"))
+
+dot_plot_DE <- ggplot(regulation_long_df, aes(x = Genotype, y = value, color = variable)) +
+  geom_point(size = 4) +
+  theme_minimal() +
+  labs(
+    title = "Number of Up and Down-Regulated DEGs by Genotype",
+    x = "Genotype",
+    y = "Number of DEGs",
+    color = "Expression"  # Change the legend title
+  ) +
+  theme(
+    axis.text.x = element_text(size = 14, angle = 45, hjust = 1, face = "italic"),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14, face = "bold")
+  ) +
+  scale_color_manual(values = c("Decreased" = "blue", "Increased" = "red")) +
+  scale_x_discrete(labels = custom_labels)
+
+print(dot_plot_DE)
+```
+
+
+```{r}
+# Save the plot
+ggsave(
+  filename = "DEG_regulation_by_genotype_dot_plot_reordered.png",
+  plot = dot_plot_DE,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+```
+
+```{r}
+#Add color bar to dot plot
+library(ggplot2)
+
+# Define genotype colors
+genotype_colors <- c(
+    "WT" = "gray1", "tlo12∆/∆" = "dodgerblue", "tlo9/tlo10" = "darkblue", "tlo13∆/∆" = "darkorchid", "tlo9∆" = "cyan4",
+    "tlo3∆/∆" = "cyan2", "tlo2∆/∆" = "yellow", "tlo34∆/∆" = "cyan3", "tlo1∆/∆" = "cyan", "tlo4∆/∆" = "magenta", 
+    "tlo10∆" = "deepskyblue", "tlo8∆/∆" = "magenta3", "tlo11∆/∆" = "magenta4", 
+    "tlo34/tlo2" = "green3", "tlo16∆/∆" = "orchid", "tlo5∆/∆" = "magenta1", "tlo7∆/∆" = "magenta2", "tlo∆/∆" = "gray"
+)
+
+# Ensure "Upregulation" is above "Downregulation" in the legend
+regulation_long_df$variable <- factor(regulation_long_df$variable, levels = c("Increased", "Decreased"))
+
+# Create a separate data frame for the color bar
+genotype_bar_df <- data.frame(
+  Genotype = unique(regulation_long_df$Genotype),
+  y = -max(regulation_long_df$value) * 0.1  # Position below x-axis
+)
+
+# Create base dot plot
+dot_plot_DE <- ggplot(regulation_long_df, aes(x = Genotype, y = value, color = variable)) +
+  geom_point(size = 4) +
+
+  # Add color bar below x-axis (with inherit.aes = FALSE)
+  geom_tile(data = genotype_bar_df, 
+            aes(x = Genotype, y = y, fill = Genotype), 
+            height = max(regulation_long_df$value) * 0.04, width = 0.8, inherit.aes = FALSE) +
+
+  theme_minimal() +
+  labs(
+    title = "Number of Up and Down-Regulated DEGs by Genotype",
+    x = "Genotype",
+    y = "Number of DEGs",
+    color = "Regulation",
+    fill = "Genotype"
+  ) +
+
+  theme(
+    axis.text.x = element_text(size = 20, angle = 45, hjust = 1, face = "italic"),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 20, face = "bold"),
+    axis.title.y = element_text(size = 20, face = "bold"),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold"),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20, face = "bold"),
+    legend.position = "right"  # Move legend below the x-axis
+  ) +
+
+  scale_color_manual(values = c("Decreased" = "blue", "Increased" = "red")) +
+  scale_fill_manual(values = genotype_colors, guide = "none") +  # Apply genotype colors but remove extra legend
+  scale_x_discrete(labels = custom_labels)
+
+print(dot_plot_DE)
+
+```
+
+```{r}
+# Save the plot
+ggsave(
+  filename = "DEG_regulation_by_genotype_dot_plot_reordered_with_colorbars_no_dKOs.png",
+  plot = dot_plot_DE,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+```
