@@ -1,12 +1,5 @@
 ```{r}
 # Call necessary libraries/install necessary packages
-# devtools::install_github("kevinblighe/CorLevelPlot")
-#if (!require("BiocManager", quietly = TRUE))
-#     install.packages("BiocManager")
-# 
-# BiocManager::install("impute")
-
-library(CorLevelPlot)
 library(WGCNA)
 library(preprocessCore)
 library(impute)
