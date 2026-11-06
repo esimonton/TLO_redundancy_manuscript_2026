@@ -5,7 +5,14 @@
 #Make a chord diagram that demonstrates TLO mutant association with modules (no-null edition)
 # Call necessary libraries/install necessary packages
 # devtools::install_github("kevinblighe/CorLevelPlot")
+#if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("impute")
+
+
 # Load necessary library
+library(CorLevelPlot)
 library(circlize)
 
 
