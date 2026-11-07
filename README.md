@@ -37,3 +37,25 @@ R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albi
 # Fig8 
       A -> chord_diagram
       B -> Trait_ME_heatmap
+
+# The R scripts for the Supplementary figures can be found in the following files:
+
+# FigS2
+      -> growth_analysis+figures
+# FigS3
+      -> growth_analysis+figures
+# FigS4
+      B -> growth_analysis+figures
+      C -> growth_analysis+figures
+# FigS5
+      B -> growth_analysis+figures
+      C -> growth_analysis+figures 
+# FigS6
+      volcano plots -> DEG_volcano_plots
+      dendrogram -> WGCNA (cor_matrix)
+# FigS7
+      -> WGCNA (cor_mat, p_mat, pheatmap)
+# FigS8
+      A -> calculate_TPM_from_RNAseq
+      B -> growth_analysis+figures
+      
