@@ -38,7 +38,7 @@ R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albi
       A -> chord_diagram
       B -> Trait_ME_heatmap
 
-# The R scripts for the Supplementary figures can be found in the following files:
+# The R scripts for constructing the supplementary figures can be found in the following files:
 
 # FigS2
       -> growth_analysis+figures
