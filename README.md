@@ -1,5 +1,18 @@
 # TLO_redundancy_manuscript_2026
-R scripts for the TLO redundancy manuscript titled "Paralogs of the Candida albicans TLO gene family form interconnected functional networks with incomplete redundancy" doi: https://doi.org/10.64898/2026.06.29.735307
+R scripts for the manuscript titled "Paralogs of the Candida albicans TLO gene family form interconnected functional networks with incomplete redundancy" 
+by 
+Emily Simonton a,b, Nayeli Cangelosi c, Mikki Zhou c, Philip S. Hendricks b,d, Andrew L. Woodruff b, Nathaniel Sharp c, Matthew Z. Anderson b,c,d,e
+
+
+a Microbiology Doctoral Training Program, University of Wisconsin - Madison, Madison, WI, USA.
+b Department of Microbiology, The Ohio State University, Columbus, OH, USA.
+c Laboratory of Genetics, University of Wisconsin - Madison, Madison, WI, USA.
+d Center for Genomic Science Innovation, University of Wisconsin - Madison, Madison, WI, USA.
+e Department of Microbial Infection and Immunity, The Ohio State University, Columbus, OH, USA.
+
+* correspondence: mzanderson@wisc.edu
+
+doi: https://doi.org/10.64898/2026.06.29.735307
 
 # Stats calculations are in the following files:
       Tamhane-Dunnett's 
